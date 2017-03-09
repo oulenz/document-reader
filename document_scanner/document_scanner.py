@@ -5,6 +5,11 @@ from typing import Callable
 import cv2
 import imutils
 import numpy as np
+import tensorflow as tf
+
+from tfwrapper.nets import SingleLayerNeuralNet
+from tfwrapper.nets.pretrained import InceptionV3
+
 
 
 def get_config(path: str, image_path: str):
@@ -257,11 +262,16 @@ def crop_boxes(scan, config, coord_dict, scale_factors) -> None:
 
     h_scan, w_scan = scan.shape
 
+    filenames = []
     for element, coords in coord_dict.items():
         l, r, u, d = scale_and_pad_coords(coords, scale_factors, padding, w_scan, h_scan)
         crop = scan[u:d, l:r]
-        cv2.imwrite(os.path.join(output_path, file_stem + '_' + element + file_ext), crop)
-    return
+        filename = os.path.join(output_path, file_stem + '_' + element + file_ext)
+        cv2.imwrite(filename, crop)
+        filenames.append(filename)
+
+    print('Found ' + str(len(filenames)) + ' boxes')
+    return filenames
 
 
 def find_boxes(scan, coord_dict, section, config, debug: bool) -> None:
@@ -269,18 +279,20 @@ def find_boxes(scan, coord_dict, section, config, debug: bool) -> None:
     if debug:
         show_boxes(scan, coord_dict)
     scale_factors = get_scale_factors(section, scan)
-    crop_boxes(scan, config, coord_dict, scale_factors)
+    return crop_boxes(scan, config, coord_dict, scale_factors)
 
 
 def read_document(scan, template, config, debug: bool) -> None:
     coord_dict = parse_coords(config)
     sections = get_sections(config['sections_path'])
+    filenames = []
+
     for section in sections:
         l, r, u, d = section['coords']
         section_template = template[u:d, l:r]
         scan = find_section(scan, section_template, debug)
-        find_boxes(scan, coord_dict, section, config, debug)
-    return
+        filenames += find_boxes(scan, coord_dict, section, config, debug)
+    return filenames
 
 
 def scan_document(config_path: str, image_path: str, debug: bool) -> None:
@@ -289,9 +301,70 @@ def scan_document(config_path: str, image_path: str, debug: bool) -> None:
         print(config)
     template = cv2.imread(config['template_path'], 0)
     scan = find_document(template, config, debug)
-    read_document(scan, template, config, debug)
-    return
+    return read_document(scan, template, config, debug)
 
+def col_nr(val):
+    if val == 'A':
+        return 0
+    else:
+        return 1
+
+def img_repr(val):
+    img = np.ones((100, 100, 3)) * 255
+    #cv2.line(img, pt1, pt2, color[, thickness[, lineType[, shift]]]) 
+    if val is None:
+        img = img
+    elif val < 0.5:
+        cv2.line(img, (50, 90), (90, 10), (0, 255, 0), 3)
+        cv2.line(img, (25, 50), (50, 90), (0, 255, 0), 3)
+    else:
+        cv2.line(img, (10, 10), (90, 90), (0, 0, 255), 3)
+        cv2.line(img, (10, 90), (90, 10), (0, 0, 255), 3)
+
+    return img
+
+def str_repr(val):
+    if val == 0:
+        return '[X]'
+    else:
+        return '[ ]'
+
+def classify_boxes(filenames, debug):
+    inception = InceptionV3(graph_file='/Users/esten/ml/imagenet/classify_image_graph_def.pb')
+    features = inception.extract_features_from_files(filenames)
+
+    nn = SingleLayerNeuralNet(features.shape[1], 2, 1024, name='Checkboxes')
+    graph = tf.Graph()
+    with graph.as_default():
+        with tf.Session(graph=graph) as sess:
+            nn.load('models/checkboxes', sess=sess)
+            yhat = nn.predict(features, sess=sess)
+    
+    grid = np.ones([int(len(filenames) / 2) - 1, 2])
+    for i in range(len(filenames)):
+        filename = filenames[i]
+        tokens = filename.split('_')
+
+        try:
+            row = int(tokens[-2][1:]) - 1
+            col = col_nr(tokens[-1].split('.')[0])
+            grid[row][col] = np.argmax(yhat[i])
+            if debug:
+                img = cv2.imread(filename)
+                img = cv2.resize(img, (100, 100))
+                rep = img_repr(grid[row][col])
+                cv2.imshow('Cell', img)
+                cv2.imshow('Class', rep)
+                cv2.moveWindow('Cell', 700, 400)
+                cv2.moveWindow('Class', 700, 520)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+
+        except Exception:
+            continue
+
+    for i in range(len(grid)):
+        print(str_repr(grid[i][0]) + '\t' + str_repr(grid[i][1]))
 
 if __name__ == "__main__":
     import argparse
@@ -302,4 +375,5 @@ if __name__ == "__main__":
     parser.add_argument('--debug', dest='debug', action='store_true',
                         help='Display pictures and values')
     args = parser.parse_args()
-    scan_document(args.config_path, args.image_path, args.debug)
+    filenames = scan_document(args.config_path, args.image_path, args.debug)
+    classify_boxes(filenames, args.debug)

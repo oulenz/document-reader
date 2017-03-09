@@ -2,3 +2,10 @@
 data
 output
 __pycache__
+document_scanner/test/**/*
+document_scanner/checkboxes/**/*
+document_scanner/test/**/*
+document_scanner/checkbox_features.csv
+document_scanner/features*
+document_scanner/models/**/*
+document_scanner/refined/**/*
