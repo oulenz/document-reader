@@ -301,7 +301,9 @@ def scan_document(config_path: str, image_path: str, debug: bool) -> None:
         print(config)
     template = cv2.imread(config['template_path'], 0)
     scan = find_document(template, config, debug)
-    return read_document(scan, template, config, debug)
+    file_names = read_document(scan, template, config, debug)
+    classify_boxes(file_names, config)
+    return
 
 def col_nr(val):
     if val == 'A':
@@ -329,15 +331,16 @@ def str_repr(val):
     else:
         return '[ ]'
 
-def classify_boxes(filenames, debug):
-    inception = InceptionV3(graph_file='/Users/esten/ml/imagenet/classify_image_graph_def.pb')
+def classify_boxes(filenames, config):
+    #inception = InceptionV3(graph_file='/Users/esten/ml/imagenet/classify_image_graph_def.pb')
+    inception = InceptionV3(graph_file=config['inception_graph_path'])
     features = inception.extract_features_from_files(filenames)
 
     nn = SingleLayerNeuralNet(features.shape[1], 2, 1024, name='Checkboxes')
     graph = tf.Graph()
     with graph.as_default():
         with tf.Session(graph=graph) as sess:
-            nn.load('models/checkboxes', sess=sess)
+            nn.load(config['checkbox_model_path'], sess=sess)
             yhat = nn.predict(features, sess=sess)
     
     grid = np.ones([int(len(filenames) / 2) - 1, 2])
@@ -349,7 +352,7 @@ def classify_boxes(filenames, debug):
             row = int(tokens[-2][1:]) - 1
             col = col_nr(tokens[-1].split('.')[0])
             grid[row][col] = np.argmax(yhat[i])
-            if debug:
+            if config['debug']:
                 img = cv2.imread(filename)
                 img = cv2.resize(img, (100, 100))
                 rep = img_repr(grid[row][col])
@@ -375,5 +378,4 @@ if __name__ == "__main__":
     parser.add_argument('--debug', dest='debug', action='store_true',
                         help='Display pictures and values')
     args = parser.parse_args()
-    filenames = scan_document(args.config_path, args.image_path, args.debug)
-    classify_boxes(filenames, args.debug)
+    scan_document(args.config_path, args.image_path, args.debug)
