@@ -3,7 +3,6 @@ import os
 from typing import Callable
 
 import cv2
-import imutils
 import numpy as np
 import tensorflow as tf
 
@@ -43,6 +42,12 @@ def get_orb_values(template, photo):
                               multi_probe_level=1)  # 1-2
 
     return kp_template, kp_photo, des_template, des_photo, flann_index_params
+
+
+def resize(img, height):
+    h, w = img.shape
+    ratio = height/h
+    return cv2.resize(img, (height, int(ratio*w)))
 
 
 def find_transformation(template, photo, debug: bool):
@@ -104,7 +109,7 @@ def find_transformation(template, photo, debug: bool):
         photo_with_match = cv2.drawMatches(template, kp_template, photo_with_lines, kp_photo, good, None, **draw_params)
 
         # plt.imshow(img3, 'gray'), plt.show()
-        cv2.imshow("Match", imutils.resize(photo_with_match, height=650))
+        cv2.imshow("Match", resize(photo_with_match, 650))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -120,8 +125,8 @@ def create_scan(template, photo, debug: bool):
 
     # show the original and scanned images
     if debug:
-        cv2.imshow("Original", imutils.resize(photo, height=650))
-        cv2.imshow("Scanned", imutils.resize(scan, height=650))
+        cv2.imshow("Original", resize(photo, 650))
+        cv2.imshow("Scanned", resize(scan, 650))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -132,7 +137,7 @@ def find_document(template, config, debug: bool):
     photo = cv2.imread(config['image_path'], 0)
     h, w = template.shape
     h_scan = int(h * 1.2)
-    small = imutils.resize(photo, height=h_scan)
+    small = resize(photo, h_scan)
     scan = create_scan(template, small, debug)
 
     return scan
@@ -295,16 +300,6 @@ def read_document(scan, template, config, debug: bool) -> None:
     return filenames
 
 
-def scan_document(config_path: str, image_path: str, debug: bool) -> None:
-    config = get_config(config_path, image_path)
-    if debug:
-        print(config)
-    template = cv2.imread(config['template_path'], 0)
-    scan = find_document(template, config, debug)
-    file_names = read_document(scan, template, config, debug)
-    classify_boxes(file_names, config)
-    return
-
 def col_nr(val):
     if val == 'A':
         return 0
@@ -313,7 +308,7 @@ def col_nr(val):
 
 def img_repr(val):
     img = np.ones((100, 100, 3)) * 255
-    #cv2.line(img, pt1, pt2, color[, thickness[, lineType[, shift]]]) 
+    #cv2.line(img, pt1, pt2, color[, thickness[, lineType[, shift]]])
     if val is None:
         img = img
     elif val < 0.5:
@@ -325,24 +320,26 @@ def img_repr(val):
 
     return img
 
+
 def str_repr(val):
     if val == 0:
         return '[X]'
     else:
         return '[ ]'
 
+
 def classify_boxes(filenames, config):
     #inception = InceptionV3(graph_file='/Users/esten/ml/imagenet/classify_image_graph_def.pb')
     inception = InceptionV3(graph_file=config['inception_graph_path'])
     features = inception.extract_features_from_files(filenames)
 
-    nn = SingleLayerNeuralNet(features.shape[1], 2, 1024, name='Checkboxes')
+    nn = SingleLayerNeuralNet([features.shape[1]], 2, 1024, name='Checkboxes')
     graph = tf.Graph()
     with graph.as_default():
         with tf.Session(graph=graph) as sess:
             nn.load(config['checkbox_model_path'], sess=sess)
             yhat = nn.predict(features, sess=sess)
-    
+
     grid = np.ones([int(len(filenames) / 2) - 1, 2])
     for i in range(len(filenames)):
         filename = filenames[i]
@@ -368,6 +365,17 @@ def classify_boxes(filenames, config):
 
     for i in range(len(grid)):
         print(str_repr(grid[i][0]) + '\t' + str_repr(grid[i][1]))
+
+
+def scan_document(config_path: str, image_path: str, debug: bool) -> None:
+    config = get_config(config_path, image_path)
+    if debug:
+        print(config)
+    template = cv2.imread(config['template_path'], 0)
+    scan = find_document(template, config, debug)
+    file_names = read_document(scan, template, config, debug)
+    classify_boxes(file_names, config)
+    return
 
 if __name__ == "__main__":
     import argparse
