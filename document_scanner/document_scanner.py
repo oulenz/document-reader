@@ -4,6 +4,7 @@ from typing import Callable
 
 import cv2
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 from tfwrapper.nets import SingleLayerNeuralNet
@@ -45,12 +46,16 @@ def get_orb_values(template, photo):
 
 
 def resize(img, height):
-    h, w = img.shape
+    if len(img.shape) == 2:
+        h, w = img.shape
+    else:
+        h, w, _ = img.shape
     ratio = height/h
-    return cv2.resize(img, (height, int(ratio*w)))
+    return cv2.resize(img, (int(ratio*w), height))
 
 
 def find_transformation(template, photo, debug: bool):
+    print('test')
     MIN_MATCH_COUNT = 10
 
     # kp_template, kp_photo, des_template, des_photo, index_params = get_sift_values(template, photo)
@@ -75,7 +80,7 @@ def find_transformation(template, photo, debug: bool):
     #            good.append(m)
     good = [m for (m, n) in matches if m.distance < 0.7 * n.distance]  # 0.65-0.8, false negatives-false positives
     if debug:
-        print(str(len(kp_template)) + ' matches in template, ' + str(len(kp_photo)) + ' in photo, ' +
+        print(str(len(kp_template)) + ' points in template, ' + str(len(kp_photo)) + ' in photo, ' +
               str(len(matches)) + ' matches, ' + str(len(good)) + ' good matches')
 
     if len(good) > MIN_MATCH_COUNT:
@@ -144,19 +149,35 @@ def find_document(template, config, debug: bool):
 
 
 def parse_coords(config):
-    areas_file = open(config['boxes_path'], 'r')
 
-    coord_dict = {}
-    for line in areas_file.readlines():
-        tokens = line.split(',')
-        name = tokens[0]
-        l = int(tokens[1].split(':')[0])
-        u = int(tokens[1].split(':')[1])
-        r = int(tokens[2].split(':')[0])
-        d = int(tokens[2].split(':')[1])
-        coord_dict[name] = (l, r, u, d)
+    boxes = pd.read_csv(config['boxes_path'], delimiter='|')
+    boxes['coords'] = boxes['coords'].apply(lambda x: tuple([int(y) for y in x.split(':')]))  # (l, r, u, d)
+    box_types = pd.read_csv(config['box_types_path'], delimiter='|')
+    boxes = boxes.merge(box_types, left_on='type', right_on='type')
 
-    return coord_dict
+    if False:
+        areas_file = open(config['boxes_path'], 'r')
+
+        coord_dict = {}
+        type_dict = {}
+        for line in areas_file.readlines():
+            tokens = line.split(',')
+            name = tokens[0]
+            type_dict[name] = tokens[1]
+            l = int(tokens[2].split(':')[0])
+            u = int(tokens[2].split(':')[1])
+            r = int(tokens[3].split(':')[0])
+            d = int(tokens[3].split(':')[1])
+            coord_dict[name] = (l, r, u, d)
+
+    required_columns = {'name', 'coords', 'type', 'model_path'}
+
+    for column in required_columns - set(boxes.columns):
+         print('Error: required column ' + column + ' missing in data files')
+
+    boxes = boxes.set_index('name')
+
+    return boxes
 
 
 def get_sections(path: str):
@@ -193,26 +214,25 @@ def shift_coords(coords, hor_shift, vert_shift):
     return (l - hor_shift, r - hor_shift, u - vert_shift, d - vert_shift)
 
 
-def subselect_section(coord_dict, section):
+def subselect_section(boxes, section):
     elements = section['elements']
 
-    subselect = {}
-
-    for k in elements:
-        if not k in coord_dict:
-            print('Warning: element ' + k + ' not in coordinate file')
-            continue
-        if is_out_of_bounds(coord_dict[k], section['coords']):
-            print('Warning: coordinates ' + str(coord_dict[k]) + ' of element ' + k +
+    for box_name in elements:
+        if box_name not in boxes.index:
+            print('Warning: box ' + box_name + ' not in box file')
+        elif is_out_of_bounds(boxes.loc[box_name, 'coords'], section['coords']):
+            print('Warning: coordinates ' + str(boxes.loc[box_name, 'coords']) + ' of box ' + box_name +
                   'not contained within coordinates ' + str(section['coords']) + ' of section ')
-            continue
-        l_section, _, u_section, _ = section['coords']
-        subselect[k] = shift_coords(coord_dict[k], l_section, u_section)
 
-    return subselect
+    l_section, _, u_section, _ = section['coords']
+
+    box_selection = boxes.copy()[boxes.index.isin(elements)]
+    box_selection['section_coords'] = box_selection['coords'].apply(lambda x: shift_coords(x, l_section, u_section))
+
+    return box_selection
 
 
-def show_boxes(photo, coord_dict):
+def show_boxes(photo, box_selection):
     import random
     import matplotlib
     import matplotlib.pyplot as plt
@@ -223,7 +243,7 @@ def show_boxes(photo, coord_dict):
 
     colours = [(1, 1, 1)] + [(random.random(), random.random(), random.random()) for i in range(255)]
     new_map = matplotlib.colors.LinearSegmentedColormap.from_list('new_map', colours, N=256)
-    for name, (l, r, u, d) in coord_dict.items():
+    for name, (l, r, u, d) in box_selection['section_coords'].iteritems():
         ul = (l, u)
         w = r - l
         h = d - u
@@ -255,7 +275,7 @@ def scale_and_pad_coords(coords, scale_factors, padding, r_max, d_max):
            min(int(d * vert_scale) + padding, d_max))
 
 
-def crop_boxes(scan, config, coord_dict, scale_factors) -> None:
+def crop_boxes(scan, config, box_selection, scale_factors) -> None:
     padding = 8
     output_path = config['output_path']
 
@@ -267,37 +287,35 @@ def crop_boxes(scan, config, coord_dict, scale_factors) -> None:
 
     h_scan, w_scan = scan.shape
 
-    filenames = []
-    for element, coords in coord_dict.items():
+    for box_name, coords in box_selection['section_coords'].iteritems():
         l, r, u, d = scale_and_pad_coords(coords, scale_factors, padding, w_scan, h_scan)
         crop = scan[u:d, l:r]
-        filename = os.path.join(output_path, file_stem + '_' + element + file_ext)
+        filename = os.path.join(output_path, file_stem + '_' + box_name + file_ext)
         cv2.imwrite(filename, crop)
-        filenames.append(filename)
+        box_selection.loc[box_name,'crop_path'] = filename
 
-    print('Found ' + str(len(filenames)) + ' boxes')
-    return filenames
+    return box_selection
 
 
-def find_boxes(scan, coord_dict, section, config, debug: bool) -> None:
-    coord_dict = subselect_section(coord_dict, section)
+def find_boxes(scan, boxes, section, config, debug: bool):
+    box_selection = subselect_section(boxes, section)
     if debug:
-        show_boxes(scan, coord_dict)
+        show_boxes(scan, box_selection)
     scale_factors = get_scale_factors(section, scan)
-    return crop_boxes(scan, config, coord_dict, scale_factors)
+    return crop_boxes(scan, config, box_selection, scale_factors)
 
 
-def read_document(scan, template, config, debug: bool) -> None:
-    coord_dict = parse_coords(config)
+def read_document(scan, template, config, debug: bool):
+    boxes = parse_coords(config)
     sections = get_sections(config['sections_path'])
-    filenames = []
+    box_selections = []
 
     for section in sections:
         l, r, u, d = section['coords']
         section_template = template[u:d, l:r]
         scan = find_section(scan, section_template, debug)
-        filenames += find_boxes(scan, coord_dict, section, config, debug)
-    return filenames
+        box_selections.append(find_boxes(scan, boxes, section, config, debug))
+    return pd.concat(box_selections)
 
 
 def col_nr(val):
@@ -328,43 +346,35 @@ def str_repr(val):
         return '[ ]'
 
 
-def classify_boxes(filenames, config):
-    #inception = InceptionV3(graph_file='/Users/esten/ml/imagenet/classify_image_graph_def.pb')
+def classify_boxes(boxes, config, debug, scan):
     inception = InceptionV3(graph_file=config['inception_graph_path'])
-    features = inception.extract_features_from_files(filenames)
+    #features = inception.extract_features_from_files(filenames)
+    boxes['features'] = inception.extract_features_from_files(boxes['crop_path'].tolist()).tolist()
 
-    nn = SingleLayerNeuralNet([features.shape[1]], 2, 1024, name='Checkboxes')
-    graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(graph=graph) as sess:
-            nn.load(config['checkbox_model_path'], sess=sess)
-            yhat = nn.predict(features, sess=sess)
+    for model_path, model_boxes in boxes.groupby('model_path'):
+        nn = SingleLayerNeuralNet([len(model_boxes['features'])], 2, 1024, name='Checkboxes')
+        graph = tf.Graph()
+        with graph.as_default():
+            with tf.Session(graph=graph) as sess:
+                nn.load(model_path, sess=sess)
+                yhat = nn.predict(np.array(model_boxes['features'].tolist()), sess=sess)
+                print(yhat)
+                model_boxes['yhat'] = yhat.tolist()
 
-    grid = np.ones([int(len(filenames) / 2) - 1, 2])
-    for i in range(len(filenames)):
-        filename = filenames[i]
-        tokens = filename.split('_')
+        for name, box in model_boxes.iterrows():
+            print(name + ' ' + str(np.argmax(box['yhat'])))
 
-        try:
-            row = int(tokens[-2][1:]) - 1
-            col = col_nr(tokens[-1].split('.')[0])
-            grid[row][col] = np.argmax(yhat[i])
-            if config['debug']:
-                img = cv2.imread(filename)
-                img = cv2.resize(img, (100, 100))
-                rep = img_repr(grid[row][col])
-                cv2.imshow('Cell', img)
-                cv2.imshow('Class', rep)
-                cv2.moveWindow('Cell', 700, 400)
-                cv2.moveWindow('Class', 700, 520)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
+        if debug:
 
-        except Exception:
-            continue
+            for name, box in model_boxes.iterrows():
+                l,r,u,d = box['coords']
+                cv2.putText(scan, str(np.argmax(box['yhat'])), org=(l, d), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(0, 255, 0))
 
-    for i in range(len(grid)):
-        print(str_repr(grid[i][0]) + '\t' + str_repr(grid[i][1]))
+            cv2.imshow('Detected', resize(scan, 650))
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+
+    return
 
 
 def scan_document(config_path: str, image_path: str, debug: bool) -> None:
@@ -373,8 +383,8 @@ def scan_document(config_path: str, image_path: str, debug: bool) -> None:
         print(config)
     template = cv2.imread(config['template_path'], 0)
     scan = find_document(template, config, debug)
-    file_names = read_document(scan, template, config, debug)
-    classify_boxes(file_names, config)
+    boxes = read_document(scan, template, config, debug)
+    classify_boxes(boxes, config, debug, scan)
     return
 
 if __name__ == "__main__":
@@ -387,3 +397,10 @@ if __name__ == "__main__":
                         help='Display pictures and values')
     args = parser.parse_args()
     scan_document(args.config_path, args.image_path, args.debug)
+
+
+def characters(img):
+    h,w = img.shape
+
+
+    return
