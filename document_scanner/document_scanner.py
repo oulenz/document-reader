@@ -267,7 +267,7 @@ def classify_boxes(boxes, config, debug, scan):
     boxes['features'] = inception.extract_features_from_files(boxes['crop_path'].tolist()).tolist()
 
     for (model_name, model_path, num_classes), model_boxes in boxes.groupby(['type', 'model_path', 'num_classes']):
-        nn = SingleLayerNeuralNet([len(model_boxes['features'])], num_classes, 1024, name=model_name)
+        nn = SingleLayerNeuralNet([len(model_boxes.ix[0, 'features'])], num_classes, 1024, name=model_name)
         graph = tf.Graph()
         with graph.as_default():
             with tf.Session(graph=graph) as sess:
