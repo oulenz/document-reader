@@ -247,6 +247,7 @@ def crop_boxes(scan, boxes, img_path, config) -> None:
 
     folder_path, file = os.path.split(img_path)
     file_stem, file_ext = os.path.splitext(file)
+    file_ext = '.jpg' # always save as .jpg
     output_path = config['output_path']
     if not os.path.isdir(output_path):
         os.mkdir(output_path)

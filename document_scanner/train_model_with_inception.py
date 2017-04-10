@@ -4,8 +4,6 @@ import tensorflow as tf
 
 from tfwrapper import Dataset
 from tfwrapper.nets import SingleLayerNeuralNet
-from tfwrapper.utils.data import parse_features
-from tfwrapper.utils.data import write_features
 from tfwrapper.utils.images import copy_image_folder
 from tfwrapper.nets.pretrained import InceptionV3
 
@@ -42,7 +40,7 @@ def train_model(config_path, src_path, model_name, flip_images):
     dataset = Dataset(features=features)
     X, y, test_X, test_y, labels = dataset.getdata(balance=True, translate_labels=True, shuffle=True, onehot=True,
                                                    split=True)
-    print('Labels: ' + str(labels))
+
     graph = tf.Graph()
     with graph.as_default():
         with tf.Session(graph=graph) as sess:
