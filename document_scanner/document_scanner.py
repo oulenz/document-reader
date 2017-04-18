@@ -269,13 +269,9 @@ def classify_boxes(boxes, config, debug, scan):
 
     for (model_name, model_path, num_classes), model_boxes in boxes.groupby(['type', 'model_path', 'num_classes']):
         nn = SingleLayerNeuralNet([len(model_boxes.ix[0, 'features'])], num_classes, 1024, name=model_name)
-        graph = tf.Graph()
-        with graph.as_default():
-            with tf.Session(graph=graph) as sess:
-                nn.load(model_path, sess=sess)
-                yhat = nn.predict(np.array(model_boxes['features'].tolist()), sess=sess)
-                print(yhat)
-                model_boxes['yhat'] = yhat.tolist()
+        nn.load(model_path)
+        yhat = nn.predict(np.array(model_boxes['features'].tolist()))
+        model_boxes['yhat'] = yhat.tolist()
 
         if debug:
             for name, box in model_boxes.iterrows():

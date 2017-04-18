@@ -21,12 +21,9 @@ def classify(model_path: str, num_classes: int, src_path: str, inception_graph_p
     imgs['features'] = inception.extract_features_from_files(imgs['image_path'].tolist()).tolist()
 
     nn = SingleLayerNeuralNet([len(imgs.ix[0, 'features'])], num_classes, 1024, name=os.path.split(model_path)[1])
-    graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(graph=graph) as sess:
-            nn.load(model_path, sess=sess)
-            yhat = nn.predict(np.array(imgs['features'].tolist()), sess=sess)
-            imgs['yhat'] = yhat.tolist()
+    nn.load(model_path)
+    yhat = nn.predict(np.array(imgs['features'].tolist()))
+    imgs['yhat'] = yhat.tolist()
 
     folder_path = os.path.split(src_path)[0]
     for _, img in imgs.iterrows():

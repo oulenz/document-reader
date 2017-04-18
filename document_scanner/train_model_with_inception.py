@@ -1,6 +1,5 @@
 import document_scanner as ds
 import os
-import tensorflow as tf
 
 from tfwrapper import Dataset
 from tfwrapper.nets import SingleLayerNeuralNet
@@ -38,23 +37,18 @@ def train_model(config_path, src_path, model_name, flip_images):
     features = inception.extract_features_from_datastructure(working_path, feature_file=features_path)
 
     dataset = Dataset(features=features)
-    X, y, test_X, test_y, labels = dataset.getdata(balance=True, translate_labels=True, shuffle=True, onehot=True,
-                                                   split=True)
+    dataset = dataset.normalize()
+    dataset = dataset.balance()
+    dataset = dataset.shuffle()
+    dataset = dataset.translate_labels()
+    dataset = dataset.onehot()
+    train, test = dataset.split(0.8)
 
-    graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(graph=graph) as sess:
-            nn = SingleLayerNeuralNet([X.shape[1]], number_of_classes, 1024, name=model_name, sess=sess, graph=graph)
-            nn.train(X, y, epochs=10, sess=sess, verbose=True)
-            nn.save(model_path, sess=sess)
-
-    nn = SingleLayerNeuralNet([X.shape[1]], number_of_classes, 1024, name=model_name)
-    graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(graph=graph) as sess:
-            nn.load(model_path, sess=sess)
-            _, acc = nn.validate(X, y, sess=sess)
-            print('Test accuracy: %d %%' % (acc * 100))
+    nn = SingleLayerNeuralNet([train.X.shape[1]], number_of_classes, 1024, name=model_name)
+    nn.train(train.X, train.y, epochs=10, verbose=True)
+    nn.save(model_path)
+    _, acc = nn.validate(test.X, test.y)
+    print('Test accuracy: %d %%' % (acc * 100))
 
 
 if __name__ == "__main__":
