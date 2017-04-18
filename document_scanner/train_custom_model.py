@@ -1,11 +1,8 @@
 import cv2
 import numpy as np
 import os
-import tensorflow as tf
 
 from tfwrapper import ImageDataset
-from tfwrapper import ImageTransformer
-from tfwrapper.datasets import mnist
 from tfwrapper.nets import CNN
 
 
@@ -39,33 +36,37 @@ def train_custom_model(src_path, model_name):
 
     X, Y, (h, w, c) = get_data(src_path)
     dataset = ImageDataset(X=X, y=Y)
-    transformer = ImageTransformer(blur_steps=2, max_blur_sigma=2.5)
-    X, y, test_X, test_y, _, _ = dataset.getdata(normalize=True, balance=False, shuffle=True, onehot=True,
-                                              split=True, translate_labels=True, transformer=transformer)
-    num_classes = y.shape[1]
-    X = np.reshape(X, [-1, h, w, c])
+    dataset.preprocessor.blur(blur_steps=2, max_blur_sigma=2.5)
+    dataset = dataset.normalize()
+    dataset = dataset.balance()
+    dataset = dataset.shuffle()
+    dataset = dataset.translate_labels()
+    dataset = dataset.onehot()
+    train, test = dataset.split(0.8)
+    train_X = np.reshape(train.X, [-1, h, w, c])
+    train_y = train.y
+    test_X = np.reshape(test.X, [-1, h, w, c])
+    test_y = test.y
+    num_classes = train_y.shape[1]
 
-    graph = tf.Graph()
-    with graph.as_default():
-        with tf.Session(graph=graph) as sess:
-            name = model_name
-            twice_reduce = lambda x: -1 * ((-1 * x) // 4)
-            layers = [
-                CNN.reshape([-1, h, w, c], name=name + '_reshape'),
-                CNN.conv2d(filter=[5, 5], input_depth=1, depth=32, name=name + '_conv1'),
-                CNN.maxpool2d(k=2, name=name + '_pool1'),
-                CNN.conv2d(filter=[5, 5], input_depth=32, depth=64, name=name + '_conv2'),
-                CNN.maxpool2d(k=2, name=name + '_pool2'),
-                CNN.fullyconnected(input_size=twice_reduce(h) * twice_reduce(w) * 64, output_size=512,
-                                    name=name + '_fc'),
-                CNN.out([512, num_classes], num_classes, name=name + '_pred')
-            ]
-            cnn = CNN([h, w, c], num_classes, layers, sess=sess, graph=graph, name=name)
-            cnn.learning_rate = 0.01
-            cnn.batch_size = 512
-            cnn.train(X, y, epochs=5, sess=sess, verbose=True)
-            _, acc = cnn.validate(test_X, test_y, sess=sess)
-            print('Test accuracy: %.2f' % acc)
+    name = model_name
+    twice_reduce = lambda x: -1 * ((-1 * x) // 4)
+    layers = [
+        CNN.reshape([-1, h, w, c], name=name + '_reshape'),
+        CNN.conv2d(filter=[5, 5], input_depth=1, depth=32, name=name + '_conv1'),
+        CNN.maxpool2d(k=2, name=name + '_pool1'),
+        CNN.conv2d(filter=[5, 5], input_depth=32, depth=64, name=name + '_conv2'),
+        CNN.maxpool2d(k=2, name=name + '_pool2'),
+        CNN.fullyconnected(input_size=twice_reduce(h) * twice_reduce(w) * 64, output_size=512,
+                            name=name + '_fc'),
+        CNN.out([512, num_classes], num_classes, name=name + '_pred')
+    ]
+    cnn = CNN([h, w, c], num_classes, layers, name=name)
+    cnn.learning_rate = 0.01
+    cnn.batch_size = 512
+    cnn.train(train_X, train_y, epochs=5, verbose=True)
+    _, acc = cnn.validate(test_X, test_y)
+    print('Test accuracy: %.2f' % acc)
 
 
 if __name__ == "__main__":
