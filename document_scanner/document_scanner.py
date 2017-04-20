@@ -230,7 +230,7 @@ def show_boxes(photo, boxes):
 def pad_coords(coords, scan_shape):
     padding = 8
     l, r, u, d = coords
-    r_max, d_max = scan_shape
+    d_max, r_max = scan_shape
 
     return (max(l - padding, 0),
            min(r + padding, r_max),
