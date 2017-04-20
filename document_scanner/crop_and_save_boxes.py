@@ -3,25 +3,32 @@ import document_scanner as ds
 import os
 
 
-def process(config_path: str, image_path: str, debug: bool) -> None:
-    config = ds.parse_config(config_path, image_path)
-    # overrule output folder:
-    config['output_path'] = os.path.join(os.path.split(image_path)[0], 'crops')
+def process(config_path: str, src_path: str, debug: bool) -> None:
+    if os.path.isdir(src_path):
+        img_paths = [os.path.join(src_path, x) for x in os.listdir(src_path) if os.path.splitext(x)[1] in ['.jpg', '.png', '.JPG']]
+    else:
+        img_paths = [src_path]
+    config = ds.parse_config(config_path)
     if debug:
         print(config)
+    output_path = os.path.join(os.path.split(src_path)[0], 'crops')
+    if not os.path.isdir(output_path):
+        os.mkdir(output_path)
 
     template = cv2.imread(config['template_path'], 0)
-
-    if os.path.isdir(config['image_path']):
-        img_paths = [os.path.join(config['image_path'], x) for x in os.listdir(config['image_path']) if os.path.splitext(x)[1] in ['.jpg', '.png', '.JPG']]
-    else:
-        img_paths = [config['image_path']]
     boxes = ds.parse_boxes(config)
     for img_path in img_paths:
         print(img_path)
-        scan = ds.find_document(template, img_path, debug)
-        ds.crop_boxes(scan, boxes, img_path, config)
+        photo = cv2.imread(img_path, 0)
+        scan = ds.find_document(template, photo, debug)
+        box_selection = ds.crop_boxes(scan, boxes)
         folder_path, img_name = os.path.split(img_path)
+        file_stem, file_ext = os.path.splitext(img_name)
+        file_ext = '.jpg' # always save as .jpg because for the moment, tensorflow expects jpg
+        for box_name, crop in box_selection['crop'].iteritems():
+            filename = os.path.join(output_path, file_stem + '_' + box_name + file_ext)
+            print(filename)
+            cv2.imwrite(filename, crop)
         # move images that are done to subfolder to avoid having to redo them in case of restart
         if not os.path.isdir(os.path.join(folder_path, 'processed')):
             os.mkdir(os.path.join(folder_path, 'processed'))

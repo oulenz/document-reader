@@ -5,8 +5,8 @@ from typing import Callable
 import cv2
 import numpy as np
 import pandas as pd
-import tensorflow as tf
 
+from tfwrapper.nets import ShallowCNN
 from tfwrapper.nets import SingleLayerNeuralNet
 from tfwrapper.nets.pretrained import InceptionV3
 
@@ -26,7 +26,7 @@ def find_edges(image):
     return edged
 
 
-def parse_config(path: str, image_path: str = None):
+def parse_config(path: str):
     config = {}
     with open(path, 'r') as config_file:
         for line in config_file.read().splitlines():
@@ -35,9 +35,6 @@ def parse_config(path: str, image_path: str = None):
             line = line.split('#', 1)[0] # strip comments
             k, v = line.split('=', 1)  # only consider first occurence of =
             config[k] = v
-
-    if image_path is not None:
-        config['image_path'] = image_path
 
     return config
 
@@ -164,8 +161,7 @@ def create_scan(template, photo, debug: bool):
     return scan
 
 
-def find_document(template, image_path, debug: bool):
-    photo = cv2.imread(image_path, 0)
+def find_document(template, photo, debug: bool):
     h, w = template.shape
     h_scan = int(h * 1.2)
     small = resize(photo, h_scan)
@@ -177,7 +173,7 @@ def parse_boxes(config):
 
     boxes = pd.read_csv(config['boxes_path'], delimiter='|', comment='#')
     boxes['coords'] = boxes['coords'].apply(lambda x: tuple([int(y) for y in x.split(':')]))  # (l, r, u, d)
-    box_types = pd.read_csv(config['box_types_path'], delimiter='|', comment='#')
+    box_types = pd.read_csv(config['box_types_path'], delimiter='|', comment='#', dtype={'uses_inception': bool})
     boxes = boxes.merge(box_types, left_on='type', right_on='type')
 
     if False:
@@ -195,7 +191,7 @@ def parse_boxes(config):
             d = int(tokens[3].split(':')[1])
             coord_dict[name] = (l, r, u, d)
 
-    required_columns = {'name', 'coords', 'type', 'model_path', 'num_classes', 'crop'}
+    required_columns = {'name', 'coords', 'type', 'model_path', 'uses_inception', 'num_classes', 'crop'}
 
     for column in required_columns - set(boxes.columns):
          print('Error: required column ' + column + ' missing in data files')
@@ -242,40 +238,53 @@ def pad_coords(coords, scan_shape):
            min(d + padding, d_max))
 
 
-def crop_boxes(scan, boxes, img_path, config) -> None:
-    box_selection = boxes[boxes['crop'] == 1]
+def crop_box(scan, coords):
+    l, r, u, d = pad_coords(coords, scan.shape)
+    return scan[u:d, l:r]
 
-    folder_path, file = os.path.split(img_path)
-    file_stem, file_ext = os.path.splitext(file)
-    file_ext = '.jpg' # always save as .jpg
-    output_path = config['output_path']
-    if not os.path.isdir(output_path):
-        os.mkdir(output_path)
 
-    for box_name, coords in box_selection['coords'].iteritems():
-        l, r, u, d = pad_coords(coords, scan.shape)
-        crop = scan[u:d, l:r]
-        filename = os.path.join(output_path, file_stem + '_' + box_name + file_ext)
-        print(filename)
-        cv2.imwrite(filename, crop)
-        box_selection.loc[box_name,'crop_path'] = filename
-
+def crop_boxes(scan, boxes):
+    box_selection = boxes[boxes['crop'] == 1].copy()
+    box_selection['crop'] = box_selection['coords'].apply(lambda x: crop_box(scan, x))
     return box_selection
 
 
+def predict_with_inception(inception_graph_path: str, model_path: str, num_classes: int, crops):
+    inception = InceptionV3(graph_file=inception_graph_path)
+    img_features = inception.extract_features_from_imgs(crops)
+    nn = SingleLayerNeuralNet([len(img_features[0])], num_classes, 1024, name=os.path.split(model_path)[1])
+    nn.load(model_path)
+    return pd.Series(nn.predict(np.array(img_features.tolist())).tolist(), index=crops.index)
+
+
+# TODO: handle non-shallow cnns
+def predict_with_cnn(model_path: str, num_classes: int, crops):
+    img_features = np.array(crops.tolist())
+    n, h, w = img_features.shape
+    img_features = np.reshape(img_features, [n, h, w, 1])
+    cnn = ShallowCNN([h, w, 1], num_classes, name=os.path.split(model_path)[1])
+    cnn.load(model_path)
+    return pd.Series(cnn.predict(img_features).tolist(), index=crops.index)
+
+
+def predict_with_model(inception_graph_path: str, model_path: str, num_classes: int, crops):
+    yhat = (predict_with_inception(inception_graph_path, model_path, num_classes, crops)
+                    if inception_graph_path is not None
+                    else predict_with_cnn(model_path, num_classes, crops))
+    return yhat.apply(lambda x: np.argmax(x))
+
+
 def classify_boxes(boxes, config, debug, scan):
-    inception = InceptionV3(graph_file=config['inception_graph_path'])
-    boxes['features'] = inception.extract_features_from_files(boxes['crop_path'].tolist()).tolist()
+    values = {}
 
-    for (model_name, model_path, num_classes), model_boxes in boxes.groupby(['type', 'model_path', 'num_classes']):
-        nn = SingleLayerNeuralNet([len(model_boxes.ix[0, 'features'])], num_classes, 1024, name=model_name)
-        nn.load(model_path)
-        yhat = nn.predict(np.array(model_boxes['features'].tolist()))
-        model_boxes['yhat'] = yhat.tolist()
-
+    for (model_path, uses_inception, num_classes), model_boxes in boxes.groupby(['model_path', 'uses_inception', 'num_classes']):
+        inception_graph_path = config['inception_graph_path'] if uses_inception else None
+        classes = predict_with_model(inception_graph_path, model_path, num_classes, model_boxes['crop'])
+        values.update(classes.to_dict())
         if debug:
+            print(values)
             for name, box in model_boxes.iterrows():
-                category = str(np.argmax(box['yhat']))
+                category = str(box['class'])
                 print(name + ' ' + category)
                 l,r,u,d = box['coords']
                 # TODO: needs tweaking
@@ -283,36 +292,26 @@ def classify_boxes(boxes, config, debug, scan):
 
             display(scan)
 
-    return
+    return values
 
 
-def read_document(scan, img_path, config, debug: bool):
+def read_document(scan, config, debug: bool):
     boxes = parse_boxes(config)
     if debug:
         show_boxes(scan, boxes)
-    boxes = crop_boxes(scan, boxes, img_path, config)
-    classify_boxes(boxes, config, debug, scan)
-    return
+    boxes = crop_boxes(scan, boxes)
+    values = classify_boxes(boxes, config, debug, scan)
+    return values
 
 
-def scan_document(config_path: str, image_path: str, debug: bool) -> None:
-    config = parse_config(config_path, image_path)
+def scan_document(config_path: str, img_path: str, debug: bool):
+    config = parse_config(config_path)
     if debug:
         print(config)
     template = cv2.imread(config['template_path'], 0)
-    scan = find_document(template, config['image_path'], debug)
-    read_document(scan, config['image_path'], config, debug)
-    return
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description='Read out form from photo')
-    parser.add_argument('config_path', help='The location of the config file')
-    parser.add_argument('image_path', help='The location of the image file (overrides path in config file)', nargs='?')
-    parser.add_argument('--debug', dest='debug', action='store_true',
-                        help='Display pictures and values')
-    args = parser.parse_args()
-    scan_document(args.config_path, args.image_path, args.debug)
+    photo = cv2.imread(img_path, 0)
+    scan = find_document(template, photo, debug)
+    values = read_document(scan, config, debug)
+    return values
 
 

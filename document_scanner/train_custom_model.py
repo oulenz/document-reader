@@ -4,6 +4,7 @@ import os
 
 from tfwrapper import ImageDataset
 from tfwrapper.nets import CNN
+from tfwrapper.nets import ShallowCNN
 
 
 def get_data(src, max_pixels = 10000):
@@ -32,7 +33,8 @@ def get_data(src, max_pixels = 10000):
     return X, Y, (height, width, 1)
 
 
-def train_custom_model(src_path, model_name):
+def train_custom_model(src_path, model_name, shallow):
+    model_path = os.path.join(src_path, model_name)
 
     X, Y, (h, w, c) = get_data(src_path)
     dataset = ImageDataset(X=X, y=Y)
@@ -49,22 +51,25 @@ def train_custom_model(src_path, model_name):
     test_y = test.y
     num_classes = train_y.shape[1]
 
-    name = model_name
-    twice_reduce = lambda x: -1 * ((-1 * x) // 4)
-    layers = [
-        CNN.reshape([-1, h, w, c], name=name + '_reshape'),
-        CNN.conv2d(filter=[5, 5], input_depth=1, depth=32, name=name + '_conv1'),
-        CNN.maxpool2d(k=2, name=name + '_pool1'),
-        CNN.conv2d(filter=[5, 5], input_depth=32, depth=64, name=name + '_conv2'),
-        CNN.maxpool2d(k=2, name=name + '_pool2'),
-        CNN.fullyconnected(input_size=twice_reduce(h) * twice_reduce(w) * 64, output_size=512,
-                            name=name + '_fc'),
-        CNN.out([512, num_classes], num_classes, name=name + '_pred')
-    ]
-    cnn = CNN([h, w, c], num_classes, layers, name=name)
+    if shallow:
+        cnn = ShallowCNN([h, w, c], num_classes, name=model_name)
+    else:
+        twice_reduce = lambda x: -1 * ((-1 * x) // 4)
+        layers = [
+            CNN.reshape([-1, h, w, c], name=model_name + '_reshape'),
+            CNN.conv2d(filter=[5, 5], input_depth=1, depth=32, name=model_name + '_conv1'),
+            CNN.maxpool2d(k=2, name=model_name + '_pool1'),
+            CNN.conv2d(filter=[5, 5], input_depth=32, depth=64, name=model_name + '_conv2'),
+            CNN.maxpool2d(k=2, name=model_name + '_pool2'),
+            CNN.fullyconnected(input_size=twice_reduce(h) * twice_reduce(w) * 64, output_size=512,
+                                name=model_name + '_fc'),
+            CNN.out([512, num_classes], num_classes, name=model_name + '_pred')
+        ]
+        cnn = CNN([h, w, c], num_classes, layers, name=model_name)
     cnn.learning_rate = 0.01
     cnn.batch_size = 512
     cnn.train(train_X, train_y, epochs=5, verbose=True)
+    cnn.save(model_path)
     _, acc = cnn.validate(test_X, test_y)
     print('Test accuracy: %.2f' % acc)
 
@@ -75,6 +80,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train custum model from images divided over subfolders')
     parser.add_argument('src_path', help='The folder containing the subfolders containing the images')
     parser.add_argument('model_name', help='The name to be used for the model')
+    parser.add_argument('--shallow', dest='shallow', action='store_true', help='Train shallow cnn')
     args = parser.parse_args()
-    train_custom_model(args.src_path, args.model_name)
+    train_custom_model(args.src_path, args.model_name, args.shallow)
 
