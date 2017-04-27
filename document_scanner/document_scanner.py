@@ -49,9 +49,11 @@ def get_keypoints_and_descriptors(img, orb, n):
             mask = np.zeros((h, w), dtype = 'uint8')
             cv2.rectangle(mask, (i*w//n, j*h//n), ((i+1)*w//n, (j+1)*h//n), 255, cv2.FILLED)
             kp, des = orb.detectAndCompute(img, mask)
-            keypoints.extend(kp)
+            if kp is not None:
+                keypoints.extend(kp)
             # descriptors need to be in a numpy array
-            descriptors.append(des)
+            if des is not None:
+                descriptors.append(des)
 
     return keypoints, np.concatenate(descriptors)
 
@@ -114,9 +116,7 @@ def show_document_identification(template, photo, transform, mask, good, MIN_MAT
     display(photo_with_match)
 
 
-def find_transformation(template, photo, debug: bool):
-    MIN_MATCH_COUNT = 10
-
+def get_matching_points(template, photo, debug: bool):
     kp_template, kp_photo, des_template, des_photo, flann_index_params = get_orb_values(template, photo, 3)
 
     flann_search_params = dict(checks=50)  # 50-100
@@ -131,9 +131,17 @@ def find_transformation(template, photo, debug: bool):
         print(str(len(kp_template)) + ' points in template, ' + str(len(kp_photo)) + ' in photo, ' +
               str(len(matches)) + ' matches, ' + str(len(good)) + ' good matches')
 
-    if len(good) > MIN_MATCH_COUNT:
-        src_pts = np.float32([kp_template[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-        dst_pts = np.float32([kp_photo[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+    return kp_template, kp_photo, good
+
+
+def find_transformation(template, photo, debug: bool):
+    MIN_MATCH_COUNT = 10
+
+    kp_template, kp_photo, matches = get_matching_points(template, photo, debug)
+
+    if len(matches) > MIN_MATCH_COUNT:
+        src_pts = np.float32([kp_template[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp_photo[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
 
         # use RANSAC method to discount suspect matches
         transform, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
@@ -142,7 +150,7 @@ def find_transformation(template, photo, debug: bool):
         transform, mask = None, None
 
     if debug:
-        show_document_identification(template, photo, transform, mask, good, MIN_MATCH_COUNT, kp_template, kp_photo)
+        show_document_identification(template, photo, transform, mask, matches, MIN_MATCH_COUNT, kp_template, kp_photo)
 
     return transform
 
@@ -311,7 +319,7 @@ def scan_document(config_path: str, img_path: str, debug: bool):
     template = cv2.imread(config['template_path'], 0)
     photo = cv2.imread(img_path, 0)
     scan = find_document(template, photo, debug)
-    values = read_document(scan, config, debug)
+    #values = read_document(scan, config, debug)
     return values
 
 
