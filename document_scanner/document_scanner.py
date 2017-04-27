@@ -1,14 +1,15 @@
 # import the necessary packages
-import os
-from typing import Callable
-
 import cv2
+import json
 import numpy as np
+import os
 import pandas as pd
+import tensorflow as tf
 
 from tfwrapper.nets import ShallowCNN
 from tfwrapper.nets import SingleLayerNeuralNet
 from tfwrapper.nets.pretrained import InceptionV3
+from typing import Callable
 
 
 # canny edge method, not currently used
@@ -257,48 +258,59 @@ def crop_boxes(scan, boxes):
     return box_selection
 
 
-def predict_with_inception(inception_graph_path: str, model_path: str, num_classes: int, crops):
-    inception = InceptionV3(graph_file=inception_graph_path)
-    img_features = inception.extract_features_from_imgs(crops)
-    nn = SingleLayerNeuralNet([len(img_features[0])], num_classes, 1024, name=os.path.split(model_path)[1])
-    nn.load(model_path)
-    return pd.Series(nn.predict(np.array(img_features.tolist())).tolist(), index=crops.index)
+def predict_with_inception(inception_graph_path: str, model_path: str, model_name: str, num_labels: int, crops):
+    with tf.Session() as sess:
+        inception = InceptionV3(graph_file=inception_graph_path, sess=sess)
+        img_features = inception.extract_features_from_imgs(crops, sess=sess)
+        nn = SingleLayerNeuralNet([len(img_features[0])], num_labels, 1024, name=model_name, sess=sess)
+        nn.load(model_path, sess=sess)
+        yhat = pd.Series(nn.predict(np.array(img_features.tolist()), sess=sess).tolist(), index=crops.index)
+    tf.reset_default_graph()
+    return yhat
 
 
 # TODO: handle non-shallow cnns
-def predict_with_cnn(model_path: str, num_classes: int, crops):
+def predict_with_cnn(model_path: str, model_name: str, c: int, num_labels: int, crops):
     img_features = np.array(crops.tolist())
-    n, h, w = img_features.shape
-    img_features = np.reshape(img_features, [n, h, w, 1])
-    cnn = ShallowCNN([h, w, 1], num_classes, name=os.path.split(model_path)[1])
-    cnn.load(model_path)
-    return pd.Series(cnn.predict(img_features).tolist(), index=crops.index)
+    n, h, w = img_features.shape[:3]
+    img_features = np.reshape(img_features, [n, h, w, c])
+
+    with tf.Session() as sess:
+        cnn = ShallowCNN([h, w, c], num_labels, name=model_name, sess=sess)
+        cnn.load(model_path, sess=sess)
+        yhat = pd.Series(cnn.predict(img_features, sess=sess).tolist(), index=crops.index)
+    tf.reset_default_graph()
+    return yhat
 
 
-def predict_with_model(inception_graph_path: str, model_path: str, num_classes: int, crops):
-    yhat = (predict_with_inception(inception_graph_path, model_path, num_classes, crops)
+def predict_with_model(inception_graph_path: str, model_path: str, model_config, crops):
+    model_name = model_config['name']
+    num_labels = model_config['y_size']
+
+    h, w, c = model_config['X_shape']
+    crops = crops.apply(lambda x: cv2.resize(x, (w, h)))
+    if c == 3:
+        crops = crops.apply(lambda x: cv2.cvtColor(x, cv2.COLOR_GRAY2RGB))
+
+    yhat = (predict_with_inception(inception_graph_path, model_path, model_name, num_labels, crops)
                     if inception_graph_path is not None
-                    else predict_with_cnn(model_path, num_classes, crops))
+                    else predict_with_cnn(model_path, model_name, c, num_labels, crops))
     return yhat.apply(lambda x: np.argmax(x))
 
 
-def classify_boxes(boxes, config, debug, scan):
+def classify_boxes(boxes, config, debug):
     values = {}
 
     for (model_path, uses_inception, num_classes), model_boxes in boxes.groupby(['model_path', 'uses_inception', 'num_classes']):
         inception_graph_path = config['inception_graph_path'] if uses_inception else None
-        classes = predict_with_model(inception_graph_path, model_path, num_classes, model_boxes['crop'])
-        values.update(classes.to_dict())
-        if debug:
-            print(values)
-            for name, box in model_boxes.iterrows():
-                category = str(box['class'])
-                print(name + ' ' + category)
-                l,r,u,d = box['coords']
-                # TODO: needs tweaking
-                cv2.putText(scan, category, org=(l, d), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1, color=(0, 255, 0))
+        with open(model_path + '.tw') as f:
+            model_config = json.load(f)
+        classes = predict_with_model(inception_graph_path, model_path, model_config, model_boxes['crop'])
+        labels = classes.apply(lambda x: model_config['labels'][x])
+        values.update(labels.to_dict())
 
-            display(scan)
+    if debug:
+        print(values)
 
     return values
 
@@ -308,7 +320,7 @@ def read_document(scan, config, debug: bool):
     if debug:
         show_boxes(scan, boxes)
     boxes = crop_boxes(scan, boxes)
-    values = classify_boxes(boxes, config, debug, scan)
+    values = classify_boxes(boxes, config, debug)
     return values
 
 
