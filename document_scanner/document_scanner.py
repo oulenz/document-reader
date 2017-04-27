@@ -319,7 +319,7 @@ def scan_document(config_path: str, img_path: str, debug: bool):
     template = cv2.imread(config['template_path'], 0)
     photo = cv2.imread(img_path, 0)
     scan = find_document(template, photo, debug)
-    #values = read_document(scan, config, debug)
+    values = read_document(scan, config, debug)
     return values
 
 
