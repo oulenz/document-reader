@@ -2,7 +2,8 @@ import document_scanner as ds
 
 
 def scan_document(config_path: str, image_path: str, debug: bool) -> None:
-    ds.scan_document(config_path, image_path, debug)
+    scanner = ds.Document_scanner(config_path)
+    scanner.process_document(image_path, debug)
     return
 
 if __name__ == "__main__":
