@@ -22,16 +22,16 @@ class Document_scanner(ABC):
 
     @staticmethod
     def parse_config(path: str):
-        config = {}
+        config_dict = {}
         with open(path, 'r') as config_file:
             for line in config_file.read().splitlines():
                 if line.startswith('#'):
                     continue # skip comments
                 line = line.split('#', 1)[0] # strip comments
                 k, v = line.split('=', 1)  # only consider first occurence of =
-                config[k] = os.path.join(BASE_DIR_PATH, v)
+                config_dict[k] = os.path.join(BASE_DIR_PATH, v)
 
-        return config
+        return config_dict
 
     @staticmethod
     def parse_field_data(config):
@@ -62,7 +62,7 @@ class Document_scanner(ABC):
 
         return model_dict
 
-    def develop_document(self, img_path: str, debug: bool = False):
+    def develop_document_old(self, img_path: str, debug: bool = False):
         document = Document(img_path)
         document.create_scan(self.template, self.orb)
         if debug:
@@ -76,6 +76,26 @@ class Document_scanner(ABC):
             if debug:
                 print(document.content_df['label'])
 
+        return document
+
+    def develop_document(self, img_path: str, debug: bool = False):
+        document = Document(img_path)
+        document.find_match(self.template, self.orb)
+        if debug:
+            document.print_template_match_quality()
+        if not document.can_create_scan():
+            if debug:
+                document.show_match_with_template()
+            return document
+        document.create_scan()
+        if debug:
+            document.show_match_with_template()
+            document.show_scan()
+            document.show_boxes(self.field_data_df)
+        document.read_document(self.field_data_df, self.model_dict)
+        if debug:
+            #print(document.content_df['label'])
+            print(document.get_content_labels_json())
         return document
 
 

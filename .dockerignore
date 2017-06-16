@@ -1,0 +1,10 @@
+.git/
+.idea/
+.gitignore
+.editorconfig
+README.md
+
+data/
+storage/
+__pycache__
+*.pyc
