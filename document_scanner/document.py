@@ -32,7 +32,7 @@ class Document(ABC):
         # Find the keypoints and descriptors.
         self.keypoints, self.kp_descriptors = cv_wrapper.get_keypoints_and_descriptors(self.resized, orb)
 
-    def create_scan(self, template, orb):
+    def find_match(self, template, orb):
         self.template = template
         h, w = template.photo.shape[:2]
         height_to_use = int(h * 1.2)
@@ -40,12 +40,22 @@ class Document(ABC):
         self.identify_keypoints(orb)
         self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.kp_descriptors)
         self.good_matches = cv_wrapper.select_good_matches(self.matches)
-        if len(self.matches) > MIN_MATCH_COUNT:
-            self.transform, self.mask = cv_wrapper.find_transformation_and_mask(template.keypoints, self.keypoints, self.good_matches)
-            self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, template.photo.shape)
-        else:
-            self.scan = None
+
+    def can_create_scan(self):
+        return len(self.matches) > MIN_MATCH_COUNT
+
+    def create_scan(self):
+        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template.keypoints, self.keypoints, self.good_matches)
+        self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, self.template.photo.shape)
         return
+
+    def read_document(self, field_data_df, model_dict):
+        field_df = cv_wrapper.crop_sections(self.scan, field_data_df)
+        self.content_df = tfw_wrapper.classify_images(field_df, model_dict)
+        return
+
+    def get_content_labels_json(self):
+        return self.content_df['label'].to_json()
 
     def print_template_match_quality(self):
         print(str(len(self.template.keypoints)) + ' points in template, ' + str(len(self.keypoints)) + ' in photo, ' +
@@ -55,7 +65,7 @@ class Document(ABC):
     def show_match_with_template(self):
         photo_with_match = self.resized.copy()
 
-        if len(self.good_matches) > MIN_MATCH_COUNT:
+        if self.can_create_scan():
             h, w = self.template.photo.shape[:2]
             pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
             dst = cv2.perspectiveTransform(pts, self.transform)
@@ -100,9 +110,4 @@ class Document(ABC):
         plt.gca().legend(handles, labels, fontsize=8, ncol=2, bbox_to_anchor=(-0.6, 1), loc='upper left')
 
         plt.show()
-        return
-
-    def read_document(self, field_data_df, model_dict):
-        field_df = cv_wrapper.crop_sections(self.scan, field_data_df)
-        self.content_df = tfw_wrapper.classify_images(field_df, model_dict)
         return
