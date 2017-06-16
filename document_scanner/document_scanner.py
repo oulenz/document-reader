@@ -68,11 +68,13 @@ class Document_scanner(ABC):
         if debug:
             document.print_template_match_quality()
             document.show_match_with_template()
-            document.show_scan()
-            document.show_boxes(self.field_data_df)
-        document.read_document(self.field_data_df, self.model_dict)
-        if debug:
-            print(document.content_df['label'])
+            if document.scan is not None:
+                document.show_scan()
+                document.show_boxes(self.field_data_df)
+        if document.scan is not None:
+            document.read_document(self.field_data_df, self.model_dict)
+            if debug:
+                print(document.content_df['label'])
 
         return document
 

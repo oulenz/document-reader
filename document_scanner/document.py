@@ -40,8 +40,11 @@ class Document(ABC):
         self.identify_keypoints(orb)
         self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.kp_descriptors)
         self.good_matches = cv_wrapper.select_good_matches(self.matches)
-        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(template.keypoints, self.keypoints, self.good_matches) if len(self.matches) > MIN_MATCH_COUNT else (None, None)
-        self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, template.photo.shape)
+        if len(self.matches) > MIN_MATCH_COUNT:
+            self.transform, self.mask = cv_wrapper.find_transformation_and_mask(template.keypoints, self.keypoints, self.good_matches)
+            self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, template.photo.shape)
+        else:
+            self.scan = None
         return
 
     def print_template_match_quality(self):
