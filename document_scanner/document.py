@@ -1,9 +1,10 @@
-import cv2
-import cv_wrapper
-import numpy as np
-import tfw_wrapper
-
 from abc import ABC
+
+import cv2
+import numpy as np
+
+import document_scanner.cv_wrapper as cv_wrapper
+import document_scanner.tfw_wrapper as tfw_wrapper
 
 MIN_MATCH_COUNT = 10
 

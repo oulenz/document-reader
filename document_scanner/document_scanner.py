@@ -1,21 +1,15 @@
-# import the necessary packages
-import csv
-
-import cv2
-import cv_wrapper
 import json
-import numpy as np
 import os
-import pandas as pd
-
 from abc import ABC
-from document import Document
+
+import pandas as pd
 from tfwrapper.models.nets import ShallowCNN
-from typing import Callable
-from os_wrapper import get_parent_dir_path
+
+import document_scanner.cv_wrapper as cv_wrapper
+from document_scanner.document import Document
+from document_scanner.os_wrapper import BASE_DIR_PATH
 
 PADDING = 8
-BASE_DIR_PATH =  get_parent_dir_path(os.path.realpath(__file__))
 
 class Document_scanner(ABC):
 
@@ -23,11 +17,11 @@ class Document_scanner(ABC):
         self.config = self.parse_config(config_path)
         self.orb = cv_wrapper.get_orb()
         self.template = Document.as_template(self.config['template_path'], self.orb)
-        self.field_data_df = self.parse_field_data(self.config, self.template.photo.shape)
+        self.field_data_df = self.parse_field_data(self.config)
         self.model_dict = self.parse_model_data(self.config)
 
-
-    def parse_config(self, path: str):
+    @staticmethod
+    def parse_config(path: str):
         config = {}
         with open(path, 'r') as config_file:
             for line in config_file.read().splitlines():
@@ -39,19 +33,15 @@ class Document_scanner(ABC):
 
         return config
 
-
-    def parse_field_data(self, config, template_shape):
-
+    @staticmethod
+    def parse_field_data(config):
         field_data_df = pd.read_csv(config['field_data_path'], delimiter='|', comment='#')
-        field_data_df['coords'] = field_data_df['coords'].apply(lambda x: cv_wrapper.pad_coords(tuple([int(y) for y in x.split(':')]), PADDING, template_shape))  # (l, r, u, d)
-
+        field_data_df['coords'] = field_data_df['coords'].apply(lambda x: cv_wrapper.pad_coords(tuple([int(y) for y in x.split(':')]), PADDING))  # (l, r, u, d)
         field_data_df = field_data_df.set_index('field_name')
-
-
         return field_data_df
 
-
-    def parse_model_data(self, config):
+    @staticmethod
+    def parse_model_data(config):
         model_dict = (pd.read_csv(config['model_data_path'], delimiter='|', comment='#')
                       .set_index('model_name')['model_path']
                       .to_dict()
@@ -72,10 +62,10 @@ class Document_scanner(ABC):
 
         return model_dict
 
-    def process_document(self, img_path: str, debug: bool = False):
+    def develop_document(self, img_path: str, debug: bool = False):
         document = Document(img_path)
         document.create_scan(self.template, self.orb)
-        if False:#debug:
+        if debug:
             document.print_template_match_quality()
             document.show_match_with_template()
             document.show_scan()
@@ -84,6 +74,6 @@ class Document_scanner(ABC):
         if debug:
             print(document.content_df['label'])
 
-        return
+        return document
 
 

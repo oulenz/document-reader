@@ -97,14 +97,9 @@ def reverse_transformation(photo, transform, original_shape):
     return cv2.warpPerspective(photo, np.linalg.inv(transform), (w, h))
 
 
-def pad_coords(coords, padding, image_shape):
+def pad_coords(coords, padding):
     l, r, u, d = coords
-    d_max, r_max = image_shape[:2]
-
-    return (max(l - padding, 0),
-           min(r + padding, r_max),
-           max(u - padding, 0),
-           min(d + padding, d_max))
+    return (l - padding, r + padding, u - padding, d + padding)
 
 
 def crop_section(image, coords):
