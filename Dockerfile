@@ -7,6 +7,7 @@ WORKDIR /app
 # Copying project files, remember to exclude large files.
 # Each COPY line is a layer that will be cached by docker.
 COPY /data ./data
+COPY /document_scanner ./document_scanner
 COPY apify.py .
 
 # Install libraries
