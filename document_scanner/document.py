@@ -54,6 +54,9 @@ class Document(ABC):
         self.content_df = tfw_wrapper.classify_images(field_df, model_dict)
         return
 
+    def get_content_labels(self):
+        return self.content_df['label']
+
     def get_content_labels_json(self):
         return self.content_df['label'].to_json()
 

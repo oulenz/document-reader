@@ -94,7 +94,6 @@ class Document_scanner(ABC):
             document.show_boxes(self.field_data_df)
         document.read_document(self.field_data_df, self.model_dict)
         if debug:
-            #print(document.content_df['label'])
             print(document.get_content_labels_json())
         return document
 

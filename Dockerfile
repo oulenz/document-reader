@@ -1,6 +1,6 @@
 FROM python:3.5
 
-ARG TFWRAPPER='git+ssh://git@github.com/epigramai/tfwrapper.git@pip-package'
+ARG TFWRAPPER='git+ssh://git@github.com/epigramai/tfwrapper.git@0.1.0-rc2'
 
 WORKDIR /app
 
@@ -38,4 +38,4 @@ EXPOSE 5000
 WORKDIR /app
 
 ENTRYPOINT ["gunicorn"]
-CMD ["-b", "0.0.0.0:5000",  "apify:app"]
+CMD ["-b", "0.0.0.0:5000", "-k", "gevent",  "apify:app"]

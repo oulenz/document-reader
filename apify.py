@@ -60,8 +60,8 @@ def predict():
         os.makedirs(request_path)
 
     # Store the request data
-    request_path = os.path.join(request_path, 'request.txt')
-    with open(request_path, 'w') as f:
+    parameter_path = os.path.join(request_path, 'request.txt')
+    with open(parameter_path, 'w') as f:
         for key in request.form:
             f.write(key + ': ' + request.form[key] + '\n')
 
@@ -83,15 +83,17 @@ def predict():
     cv2.imwrite(scan_path, document.scan, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
     content_json = document.get_content_labels_json()
+    content = document.get_content_labels()
+
     content_path = os.path.join(request_path, 'content.json')
+
     with open(content_path, 'w') as outfile:
         json.dump(content_json, outfile)
 
     logger.info('Content extracted by claimform endpoint: ' + content_json + ' : ' + str(request_path))
 
-    #return response
     return jsonify(
-        **content_json,
+        **content,
         hostname=str(socket.gethostname())
     )
 
