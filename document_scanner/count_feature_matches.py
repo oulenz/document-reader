@@ -1,7 +1,9 @@
-import cv2
-import document_scanner as ds
 import os
+
+import cv2
 import pandas as pd
+
+import document_scanner as ds
 
 
 def process(config_path: str, src_path: str) -> None:

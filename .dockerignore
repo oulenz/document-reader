@@ -1,0 +1,9 @@
+.git/
+.idea/
+.gitignore
+.editorconfig
+README.md
+
+storage/
+__pycache__
+*.pyc

@@ -1,7 +1,9 @@
-import document_scanner as ds
 import os
-import pandas as pd
 import shutil as su
+
+import pandas as pd
+
+import document_scanner as ds
 
 
 def classify(model_path: str, num_classes: int, src_path: str, inception_graph_path: str):

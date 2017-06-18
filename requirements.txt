@@ -1,0 +1,11 @@
+### NB PRIVATE REPOS IN Dockerfile ###
+h5py
+tensorflow==1.0.1
+pandas==0.19.2
+opencv-python
+scipy
+matplotlib==2.0.0
+flask==0.12
+requests==2.13.0
+gunicorn==19.7.1
+gevent==1.2.2

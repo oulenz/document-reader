@@ -1,10 +1,11 @@
-import document_scanner as ds
 import os
 
 from tfwrapper import Dataset
 from tfwrapper.nets import SingleLayerNeuralNet
-from tfwrapper.utils.images import copy_image_folder
 from tfwrapper.nets.pretrained import InceptionV3
+from tfwrapper.utils.images import copy_image_folder
+
+import document_scanner as ds
 
 
 def prepare_data(src, dest, flip_images):
