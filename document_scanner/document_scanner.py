@@ -7,7 +7,6 @@ from tfwrapper.models.nets import ShallowCNN
 
 import document_scanner.cv_wrapper as cv_wrapper
 from document_scanner.document import Document
-from document_scanner.os_wrapper import BASE_DIR_PATH
 
 PADDING = 8
 
@@ -23,13 +22,15 @@ class Document_scanner(ABC):
     @staticmethod
     def parse_config(path: str):
         config_dict = {}
+        dir_path = os.path.split(path)[0]
+        config_dict['data_dir_path'] = dir_path
         with open(path, 'r') as config_file:
             for line in config_file.read().splitlines():
                 if line.startswith('#'):
                     continue # skip comments
                 line = line.split('#', 1)[0] # strip comments
                 k, v = line.split('=', 1)  # only consider first occurence of =
-                config_dict[k] = os.path.join(BASE_DIR_PATH, v)
+                config_dict[k] = os.path.join(dir_path, v)
 
         return config_dict
 
@@ -48,7 +49,7 @@ class Document_scanner(ABC):
                       )
 
         for name, path in model_dict.items():
-            path =  os.path.join(BASE_DIR_PATH, path)
+            path =  os.path.join(config['data_dir_path'], path)
             with open(path + '.tw') as f:
                 model_config = json.load(f)
                 model_name = model_config['name']
