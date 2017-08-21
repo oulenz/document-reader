@@ -3,6 +3,8 @@ import os
 from abc import ABC
 
 import pandas as pd
+import tensorflow as tf
+#from tfwrapper.models.nets import CNN
 from tfwrapper.models.nets import ShallowCNN
 
 import document_scanner.cv_wrapper as cv_wrapper
@@ -53,13 +55,16 @@ class Document_scanner(ABC):
             with open(path + '.tw') as f:
                 model_config = json.load(f)
                 model_name = model_config['name']
-                num_labels = model_config['y_size']
+                [num_labels] = model_config['y_shape']
                 h, w, c = model_config['X_shape']
 
-                model = ShallowCNN([h, w, c], num_labels, name=model_name)
-                model.load(path)
-                label_dict = model_config['labels']
-                model_dict[name] = (model, label_dict)
+                tf.reset_default_graph()
+
+                with tf.Session() as sess:
+                    model = ShallowCNN([h, w, c], num_labels, sess=sess, name=model_name)
+                    model.load(path, sess=sess)
+                    label_dict = model_config['labels']
+                    model_dict[name] = (model, label_dict)
 
         return model_dict
 
