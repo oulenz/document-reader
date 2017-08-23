@@ -3,7 +3,19 @@ import numpy as np
 import pandas as pd
 
 
-def predict_with_model(model, img_series):
+def label_img(img, model, label_dict, pretrained_client = None):
+    if len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    if pretrained_client is not None:
+        X = np.array([pretrained_client.predict(img)])
+    else:
+        X = [img]
+    yhat = model.predict(X = X)
+
+    return label_dict[np.argmax(yhat)]
+
+
+def classify_img_series(img_series, model):
     h, w, c = model.X_shape
     img_series = img_series.apply(lambda x: cv2.resize(x, (w, h)))
     if c == 3:
@@ -18,13 +30,15 @@ def predict_with_model(model, img_series):
     return yhat.apply(lambda x: np.argmax(x))
 
 
-def classify_images(df_with_images, model_dict):
+def label_image_df(df_with_images, model_df):
     content_df = pd.DataFrame()
 
     for model_name, fields_of_model_df in df_with_images.groupby(['model_name']):
-        model, label_dict = model_dict[model_name]
+        print(model_name)
+        print(model_df.index)
+        model, label_dict = model_df.loc[model_name, ['model', 'label_dict']]
         #TODO: build in predict as label into tfwrapper
-        classes = predict_with_model(model, fields_of_model_df['crop'])
+        classes = classify_img_series(fields_of_model_df['crop'], model)
         labels = classes.apply(lambda x: label_dict[x])
         new_content = pd.DataFrame(fields_of_model_df['crop'].copy())
         new_content['label'] = labels
