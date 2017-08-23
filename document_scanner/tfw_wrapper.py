@@ -2,14 +2,15 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from tfwrapper import Dataset
 
-
-def label_img(img, model_and_labels):
-    model, label_dict = model_and_labels
+def label_img(img, model, label_dict, pretrained_client = None):
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    yhat = model.predict(X = [img])
+    if pretrained_client is not None:
+        X = np.array([pretrained_client.predict(img)])
+    else:
+        X = [img]
+    yhat = model.predict(X = X)
 
     return label_dict[np.argmax(yhat)]
 

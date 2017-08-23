@@ -5,7 +5,7 @@ from abc import ABC
 import pandas as pd
 import tensorflow as tf
 #from tfwrapper.models.nets import CNN
-from tfwrapper.models.nets import ShallowCNN
+from tfwrapper.models.nets import NeuralNet, ShallowCNN
 from tfwrapper.models.frozen import FrozenInceptionV4
 from tfwrapper.models import TransferLearningModel
 
@@ -17,10 +17,11 @@ PADDING = 8
 
 class Document_scanner(ABC):
 
-    def __init__(self, path_dict_path: str):
+    def __init__(self, path_dict_path: str, inceptionv4_client = None):
         self.path_dict = self.parse_path_dict(path_dict_path)
         self.orb = cv_wrapper.get_orb()
-        self.document_type_model_and_labels = self.parse_document_type_model(self.path_dict['document_type_model_path'])
+        self.inceptionv4_client = inceptionv4_client
+        self.document_type_model_and_labels = self.parse_document_type_model(self.path_dict['document_type_model_path'], inceptionv4_client is not None)
         self.field_data_df = self.parse_field_data(self.path_dict['field_data_path'])
         self.model_df = self.parse_model_data(self.path_dict['model_data_path'], self.path_dict['data_dir_path'])
         self.template_dict = self.parse_document_type_data(self.path_dict['document_type_data_path'], self.path_dict['data_dir_path'])
@@ -41,13 +42,15 @@ class Document_scanner(ABC):
         return path_dict
 
     @staticmethod
-    def parse_document_type_model(document_type_model_path):
-        with open(document_type_model_path + '_prediction.tw') as f:
+    def parse_document_type_model(document_type_model_path: str, with_pretrained_client: bool = False):
+        document_type_model_prediction_path = document_type_model_path + '_prediction.tw'
+        with open(document_type_model_prediction_path) as f:
             model_config = json.load(f)
             label_dict = model_config['labels']
-        print(document_type_model_path)
-        print(document_type_model_path + '_prediction.tw')
-        model = TransferLearningModel.from_tw(document_type_model_path)
+        if with_pretrained_client:
+            model = NeuralNet.from_tw(document_type_model_prediction_path, sess=None)
+        else:
+            model = TransferLearningModel.from_tw(document_type_model_path)
 
         return (model, label_dict)
 
@@ -91,7 +94,7 @@ class Document_scanner(ABC):
 
     def develop_document(self, img_path: str, debug: bool = False):
         document = Document(img_path)
-        document.find_document_type(self.document_type_model_and_labels)
+        document.find_document_type(self.document_type_model_and_labels, self.inceptionv4_client)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'
             return document

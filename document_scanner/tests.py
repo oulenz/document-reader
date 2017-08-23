@@ -2,6 +2,7 @@ import os
 
 from document_scanner.document_scanner import Document_scanner
 from document_scanner.os_wrapper import BASE_DIR_PATH
+from predict_client.mock_client import MockPredictClient
 
 PATH_DICT_PATH = os.path.join(BASE_DIR_PATH, 'data', 'paths.txt')
 
@@ -36,3 +37,9 @@ def test_develop_document():
     for document_type_name, template in scanner.template_dict.items():
         document = scanner.develop_document(template.img_path)
         assert document.document_type_name == document_type_name
+
+def test_pretrained_client():
+    incv4_client = MockPredictClient('localhost:9001', 'incv4', 1, num_scores=1536)
+    scanner = Document_scanner(PATH_DICT_PATH, incv4_client)
+    for document_type_name, template in scanner.template_dict.items():
+        document = scanner.develop_document(template.img_path)
