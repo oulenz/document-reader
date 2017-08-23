@@ -12,7 +12,7 @@ from uuid import uuid4
 from document_scanner.document_scanner import Document_scanner
 from document_scanner.os_wrapper import BASE_DIR_PATH
 
-CONFIG_FILE_PATH = os.path.join(BASE_DIR_PATH, 'data', 'config.txt')
+CONFIG_FILE_PATH = os.path.join(BASE_DIR_PATH, 'data', 'paths.txt')
 
 # Logger initialisation. This must happen before any calls to debug(), info(), etc.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')

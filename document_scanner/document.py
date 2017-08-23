@@ -11,6 +11,7 @@ MIN_MATCH_COUNT = 10
 class Document(ABC):
 
     def __init__(self, img_path: str):
+        self.img_path = img_path
         self.photo = cv2.imread(img_path, 1)
         self.photo_grey = cv2.imread(img_path, 0)
         #self.photo_grey = cv2.cvtColor(self.photo, cv2.COLOR_BGR2GRAY)
@@ -22,6 +23,9 @@ class Document(ABC):
         document.resized = document.photo
         document.identify_keypoints(orb)
         return document
+
+    def find_document_type(self, model_and_labels):
+        self.document_type_name = tfw_wrapper.label_img(self.photo_grey, model_and_labels)
 
     # canny edge method, not currently used
     def find_edges(self):
@@ -49,9 +53,9 @@ class Document(ABC):
         self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, self.template.photo.shape)
         return
 
-    def read_document(self, field_data_df, model_dict):
+    def read_document(self, field_data_df, model_df):
         field_df = cv_wrapper.crop_sections(self.scan, field_data_df)
-        self.content_df = tfw_wrapper.classify_images(field_df, model_dict)
+        self.content_df = tfw_wrapper.label_image_df(field_df, model_df)
         return
 
     def get_content_labels(self):
