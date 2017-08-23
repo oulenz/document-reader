@@ -92,12 +92,16 @@ class Document_scanner(ABC):
     def develop_document(self, img_path: str, debug: bool = False):
         document = Document(img_path)
         document.find_document_type(self.document_type_model_and_labels)
+        if document.document_type_name not in self.template_dict.keys():
+            document.error_reason = 'document_type'
+            return document
         document.find_match(self.template_dict[document.document_type_name], self.orb)
         if debug:
             document.print_template_match_quality()
         if not document.can_create_scan():
             if debug:
                 document.show_match_with_template()
+            document.error_reason = 'image_quality'
             return document
         document.create_scan()
         if debug:

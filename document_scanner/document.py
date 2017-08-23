@@ -14,6 +14,7 @@ class Document(ABC):
         self.img_path = img_path
         self.photo = cv2.imread(img_path, 1)
         self.photo_grey = cv2.imread(img_path, 0)
+        self.error_reason = None
         #self.photo_grey = cv2.cvtColor(self.photo, cv2.COLOR_BGR2GRAY)
 
     @classmethod
