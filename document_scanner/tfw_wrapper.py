@@ -9,7 +9,7 @@ def label_img(img, model_and_labels):
     model, label_dict = model_and_labels
     if len(img.shape) == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    yhat = model.predict(dataset = Dataset(X = [img]))
+    yhat = model.predict(X = [img])
 
     return label_dict[np.argmax(yhat)]
 
