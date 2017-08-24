@@ -1,22 +1,24 @@
 import json
+import logging.config
 import os
-from abc import ABC
-
 import pandas as pd
 import tensorflow as tf
-#from tfwrapper.models.nets import CNN
-from tfwrapper.models.nets import NeuralNet, ShallowCNN
-from tfwrapper.models.frozen import FrozenInceptionV4
-from tfwrapper.models import TransferLearningModel
 
+from abc import ABC
 from document_scanner.cv_wrapper import get_orb, pad_coords
 from document_scanner.document import Document
+from tfwrapper.models import TransferLearningModel
+from tfwrapper.models.frozen import FrozenInceptionV4
+from tfwrapper.models.nets import NeuralNet, ShallowCNN
+
 
 PADDING = 8
 
 class Document_scanner(ABC):
 
-    def __init__(self, path_dict_path: str, inceptionv4_client = None):
+    def __init__(self, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO'):
+        logging.config.dictConfig(self.get_logging_config_dict(log_level))
+        self.logger = logging.getLogger(__name__)
         self.path_dict = self.parse_path_dict(path_dict_path)
         self.orb = get_orb()
         self.inceptionv4_client = inceptionv4_client
@@ -24,6 +26,39 @@ class Document_scanner(ABC):
         self.field_data_df = self.parse_field_data(self.path_dict['field_data_path'])
         self.model_df = self.parse_model_data(self.path_dict['model_data_path'], self.path_dict['data_dir_path'])
         self.template_dict = self.parse_document_type_data(self.path_dict['document_type_data_path'], self.path_dict['data_dir_path'])
+
+    @staticmethod
+    def get_logging_config_dict(log_level):
+        return {
+            'version': 1,
+            'disable_existing_loggers': False,
+            'formatters': {
+                'standard': {
+                    'format': '%(asctime)s %(levelname)s %(name)s %(message)s'
+                },
+            },
+            'handlers': {
+                'default': {
+                    'level': log_level,
+                    'class': 'logging.StreamHandler',
+                    'formatter': 'standard'
+                },
+                'file': {
+                    'class': 'logging.handlers.RotatingFileHandler',
+                    'formatter': 'standard',
+                    'filename': 'apilog.log',
+                    'maxBytes': 5000 * 1024,
+                    'backupCount': 3
+                }
+            },
+            'loggers': {
+                '': {
+                    'handlers': ['default', 'file'],
+                    'level': log_level,
+                    'propagate': True
+                }
+            }
+        }
 
     @staticmethod
     def parse_path_dict(path: str):
@@ -92,11 +127,14 @@ class Document_scanner(ABC):
         return document_type_df.set_index('document_type_name')['template'].to_dict()
 
     def develop_document(self, img_path: str, debug: bool = False):
+        self.logger.info('Start developing document %s', img_path)
         document = Document(img_path)
         document.find_document_type(self.document_type_model_and_labels, self.inceptionv4_client)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'
+            self.logger.info('Predicted document type as %s, which cannot be handled; aborting', document.document_type_name)
             return document
+        self.logger.debug('Predicted document type as %s', document.document_type_name)
         document.find_match(self.template_dict[document.document_type_name], self.orb)
         if debug:
             document.print_template_match_quality()
@@ -104,8 +142,11 @@ class Document_scanner(ABC):
             if debug:
                 document.show_match_with_template()
             document.error_reason = 'image_quality'
+            self.logger.info('Identified insufficient points for template matching; aborting')
             return document
+        self.logger.debug('Identified points for template matching')
         document.create_scan()
+        self.logger.debug('Created scan from original photo')
         if debug:
             document.show_match_with_template()
             document.show_scan()
@@ -113,6 +154,7 @@ class Document_scanner(ABC):
         document.read_document(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
         if debug:
             print(document.get_content_labels_json())
+        self.logger.info('Successfully extracted content from document %s', img_path)
         return document
 
 
