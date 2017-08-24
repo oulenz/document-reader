@@ -43,3 +43,10 @@ def test_pretrained_client():
     scanner = Document_scanner(PATH_DICT_PATH, inceptionv4_client = incv4_client, log_level='DEBUG')
     for document_type_name, template in scanner.template_dict.items():
         document = scanner.develop_document(template.img_path)
+
+def test_mock_document_type_name():
+    incv4_client = MockPredictClient('localhost:9001', 'incv4', 1, num_scores=1536)
+    scanner = Document_scanner(PATH_DICT_PATH, inceptionv4_client = incv4_client, log_level='DEBUG', mock_document_type_name='standard')
+    for document_type_name, template in scanner.template_dict.items():
+        document = scanner.develop_document(template.img_path)
+        assert document.document_type_name == document_type_name

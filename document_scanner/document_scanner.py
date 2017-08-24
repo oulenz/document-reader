@@ -16,13 +16,14 @@ PADDING = 8
 
 class Document_scanner(ABC):
 
-    def __init__(self, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO'):
+    def __init__(self, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO', mock_document_type_name = None):
         logging.config.dictConfig(self.get_logging_config_dict(log_level))
         self.logger = logging.getLogger(__name__)
         self.path_dict = self.parse_path_dict(path_dict_path)
         self.orb = get_orb()
         self.inceptionv4_client = inceptionv4_client
-        self.document_type_model_and_labels = self.parse_document_type_model(self.path_dict['document_type_model_path'], inceptionv4_client is not None)
+        self.mock_document_type_name = mock_document_type_name
+        self.document_type_model_and_labels = None if mock_document_type_name else self.parse_document_type_model(self.path_dict['document_type_model_path'], inceptionv4_client is not None)
         self.field_data_df = self.parse_field_data(self.path_dict['field_data_path'])
         self.model_df = self.parse_model_data(self.path_dict['model_data_path'], self.path_dict['data_dir_path'])
         self.template_dict = self.parse_document_type_data(self.path_dict['document_type_data_path'], self.path_dict['data_dir_path'])
@@ -129,7 +130,7 @@ class Document_scanner(ABC):
     def develop_document(self, img_path: str, debug: bool = False):
         self.logger.info('Start developing document %s', img_path)
         document = Document(img_path)
-        document.find_document_type(self.document_type_model_and_labels, self.inceptionv4_client)
+        document.find_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'
             self.logger.info('Predicted document type as %s, which cannot be handled; aborting', document.document_type_name)
