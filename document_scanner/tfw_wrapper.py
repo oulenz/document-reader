@@ -34,8 +34,6 @@ def label_image_df(df_with_images, model_df):
     content_df = pd.DataFrame()
 
     for model_name, fields_of_model_df in df_with_images.groupby(['model_name']):
-        print(model_name)
-        print(model_df.index)
         model, label_dict = model_df.loc[model_name, ['model', 'label_dict']]
         #TODO: build in predict as label into tfwrapper
         classes = classify_img_series(fields_of_model_df['crop'], model)

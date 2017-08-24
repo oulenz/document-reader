@@ -9,9 +9,8 @@ from tfwrapper.models.nets import NeuralNet, ShallowCNN
 from tfwrapper.models.frozen import FrozenInceptionV4
 from tfwrapper.models import TransferLearningModel
 
-import document_scanner.cv_wrapper as cv_wrapper
+from document_scanner.cv_wrapper import get_orb, pad_coords
 from document_scanner.document import Document
-from document_scanner.os_wrapper import list_subfolders
 
 PADDING = 8
 
@@ -19,7 +18,7 @@ class Document_scanner(ABC):
 
     def __init__(self, path_dict_path: str, inceptionv4_client = None):
         self.path_dict = self.parse_path_dict(path_dict_path)
-        self.orb = cv_wrapper.get_orb()
+        self.orb = get_orb()
         self.inceptionv4_client = inceptionv4_client
         self.document_type_model_and_labels = self.parse_document_type_model(self.path_dict['document_type_model_path'], inceptionv4_client is not None)
         self.field_data_df = self.parse_field_data(self.path_dict['field_data_path'])
@@ -57,7 +56,7 @@ class Document_scanner(ABC):
     @staticmethod
     def parse_field_data(field_data_path):
         field_data_df = pd.read_csv(field_data_path, delimiter='|', comment='#')
-        field_data_df['coords'] = field_data_df['coords'].apply(lambda x: cv_wrapper.pad_coords(tuple([int(y) for y in x.split(':')]), PADDING))  # (l, r, u, d)
+        field_data_df['coords'] = field_data_df['coords'].apply(lambda x: pad_coords(tuple([int(y) for y in x.split(':')]), PADDING))  # (l, r, u, d)
         field_data_df = field_data_df.set_index(['document_type_name', 'field_name'])
         return field_data_df
 
