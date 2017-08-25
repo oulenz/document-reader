@@ -25,9 +25,8 @@ class Document(ABC):
         document.identify_keypoints(orb)
         return document
 
-    def find_document_type(self, model_and_labels, pretrained_client = None):
-        model, label_dict = model_and_labels
-        self.document_type_name = tfw_wrapper.label_img(self.photo_grey, model, label_dict, pretrained_client)
+    def find_document_type(self, model_and_labels, pretrained_client = None, mock_document_type_name = None):
+        self.document_type_name = mock_document_type_name or tfw_wrapper.label_img(self.photo_grey, *model_and_labels, pretrained_client)
 
     # canny edge method, not currently used
     def find_edges(self):
