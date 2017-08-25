@@ -10,13 +10,15 @@ def process(path_dict_path: str, src_path: str, debug: bool, move_processed: boo
     else:
         img_paths = [src_path]
     
-    output_path = os.path.join(os.path.split(src_path)[0], 'crops')
-    if not os.path.isdir(output_path):
-        os.mkdir(output_path)
     scanner = Document_scanner(path_dict_path)
+    
+    crops_path = os.path.join(os.path.split(src_path)[0], 'crops')
     for ind in scanner.model_df.index:
-        if not os.path.isdir(os.path.join(output_path, *ind)):
-            os.makedirs(os.path.join(output_path, *ind))
+        if not os.path.isdir(os.path.join(crops_path, *ind)):
+            os.makedirs(os.path.join(crops_path, *ind))
+    for document_type_name in scanner.template_dict.keys():
+        if not os.path.isdir(os.path.join(crops_path, document_type_name, 'scan')):
+            os.makedirs(os.path.join(crops_path, document_type_name, 'scan'))
 
     for img_path in img_paths:
         print(img_path)
@@ -25,12 +27,19 @@ def process(path_dict_path: str, src_path: str, debug: bool, move_processed: boo
         folder_path, img_name = os.path.split(img_path)
         file_stem, file_ext = os.path.splitext(img_name)
         file_ext = '.jpg' # always save as .jpg because for the moment, tensorflow expects jpg
+        
+        filename = os.path.join(crops_path, document.document_type_name, 'scan', file_stem + '_' + 'scan' + file_ext)
+        if debug:
+            print(filename)
+        cv2.imwrite(filename, document.scan)
+        
         df = document.content_df.merge(scanner.field_data_df.xs(document.document_type_name), left_index = True, right_index = True)
         for box_name, row in df.iterrows():
-            filename = os.path.join(output_path, document.document_type_name, row['model_name'], file_stem + '_' + box_name + file_ext)
+            filename = os.path.join(crops_path, document.document_type_name, row['model_name'], file_stem + '_' + box_name + file_ext)
             if debug:
                 print(filename)
             cv2.imwrite(filename, row['crop'])
+        
         if move_processed:
             if not os.path.isdir(os.path.join(folder_path, 'processed')):
                 os.mkdir(os.path.join(folder_path, 'processed'))
