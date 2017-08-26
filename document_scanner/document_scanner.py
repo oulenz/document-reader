@@ -1,8 +1,10 @@
+import inspect
 import json
 import logging.config
 import os
 import pandas as pd
 import tensorflow as tf
+import time
 
 from abc import ABC
 from document_scanner.cv_wrapper import get_orb, pad_coords
@@ -128,9 +130,10 @@ class Document_scanner(ABC):
         return document_type_df.set_index('document_type_name')['template'].to_dict()
 
     def develop_document(self, img_path: str, debug: bool = False):
+        start_time = time.time()
         self.logger.info('Start developing document %s', img_path)
         document = Document(img_path)
-        document.find_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
+        document.predict_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'
             self.logger.info('Predicted document type as %s, which cannot be handled; aborting', document.document_type_name)
@@ -156,6 +159,7 @@ class Document_scanner(ABC):
         if debug:
             print(document.get_content_labels_json())
         self.logger.info('Successfully extracted content from document %s', img_path)
+        document.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return document
 
 
