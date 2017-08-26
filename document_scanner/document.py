@@ -143,7 +143,7 @@ class Document(ABC):
         case_log = {}
         case_log['case_id'] = case_id
         case_log['log_path'] = log_path
-        case_log['response'] = self.get_content_labels_dict
+        case_log['response'] = self.get_content_labels_dict()
         case_log['timers'] = self.timers_dict
         
         case_log['image_paths'] = {}
@@ -152,10 +152,10 @@ class Document(ABC):
         cv2.imwrite(photo_output_path, self.photo)
         photo_grey_output_path = os.path.join(log_path, '{}_photo_grey.jpg'.format(case_id))
         case_log['image_paths']['photo_grey'] = photo_grey_output_path
-        cv2.imwrite(photo_output_path, self.photo_grey)
+        cv2.imwrite(photo_grey_output_path, self.photo_grey)
         scan_output_path = os.path.join(log_path, '{}_scan.jpg'.format(case_id))
         case_log['image_paths']['scan'] = scan_output_path
-        cv2.imwrite(photo_output_path, self.scan)        
+        cv2.imwrite(scan_output_path, self.scan)
         for field_name, row in self.content_df.iterrows():
             crop_name = 'crop_{}'.format(field_name)
             crop_output_path = os.path.join(log_path, '{}_{}.jpg'.format(case_id, crop_name))
