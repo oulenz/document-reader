@@ -76,13 +76,13 @@ class Document(ABC):
         return
 
     def get_content_labels(self):
-        return self.content_df['label']
+        return self.content_df['label'] if self.content_df is not None else None
 
     def get_content_labels_json(self):
-        return self.get_content_labels.to_json()
+        return self.content_df['label'].to_json() if self.content_df is not None else None
 
     def get_content_labels_dict(self):
-        return self.content_df['label'].to_dict()
+        return self.content_df['label'].to_dict() if self.content_df is not None else None
 
     def print_template_match_quality(self):
         print(str(len(self.template.keypoints)) + ' points in template, ' + str(len(self.keypoints)) + ' in photo, ' +
