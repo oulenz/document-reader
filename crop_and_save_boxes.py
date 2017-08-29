@@ -10,7 +10,7 @@ def process(path_dict_path: str, src_path: str, debug: bool, move_processed: boo
     else:
         img_paths = [src_path]
     
-    scanner = Document_scanner(path_dict_path)
+    scanner = Document_scanner(path_dict_path, log_level='WARNING')
     
     crops_path = os.path.join(os.path.split(src_path)[0], 'crops')
     for ind in scanner.model_df.index:
@@ -31,6 +31,8 @@ def process(path_dict_path: str, src_path: str, debug: bool, move_processed: boo
         filename = os.path.join(crops_path, document.document_type_name, 'scan', file_stem + '_' + 'scan' + file_ext)
         if debug:
             print(filename)
+        if document.scan is None:
+            return 
         cv2.imwrite(filename, document.scan)
         
         df = document.content_df.merge(scanner.field_data_df.xs(document.document_type_name), left_index = True, right_index = True)
