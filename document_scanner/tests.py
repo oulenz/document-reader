@@ -1,7 +1,7 @@
 import os
 
 from document_scanner.document_scanner import Document_scanner
-from document_scanner.os_wrapper import BASE_DIR_PATH
+from document_scanner.os_wrapper import BASE_DIR_PATH, remove_dir
 from predict_client.mock_client import MockPredictClient
 
 PATH_DICT_PATH = os.path.join(BASE_DIR_PATH, 'data', 'paths.txt')
@@ -50,3 +50,15 @@ def test_mock_document_type_name():
     for document_type_name, template in scanner.template_dict.items():
         document = scanner.develop_document(template.img_path)
         assert document.document_type_name == document_type_name
+        
+def test_save_images_and_case_log():
+    scanner = Document_scanner(PATH_DICT_PATH, log_level='DEBUG')
+    temp_dir = os.path.join(scanner.path_dict['data_dir_path'], 'temp')
+    assert not os.path.isdir(temp_dir)
+    for document_type_name, template in scanner.template_dict.items():
+        document = scanner.develop_document(template.img_path)
+        log_dir = os.path.join(temp_dir, document_type_name)
+        if not os.path.isdir(log_dir):
+            os.makedirs(log_dir)
+        document.save_images_and_case_log(log_dir, document_type_name)
+    remove_dir(temp_dir)
