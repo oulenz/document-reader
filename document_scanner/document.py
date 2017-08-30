@@ -14,17 +14,35 @@ MIN_MATCH_COUNT = 10
 
 class Document(ABC):
 
-    def __init__(self, img_path: str):
-        self.img_path = img_path
-        self.photo = cv2.imread(img_path, 1)
-        self.photo_grey = cv2.imread(img_path, 0)
+    def __init__(self):
+        self.content_df = None
+        self.document_type_name = None
         self.error_reason = None
+        self.good_matches = None
+        self.img_path = None
+        self.keypoints = None
+        self.kp_descriptors = None
+        self.mask = None
+        self.matches = None
+        self.photo = None
+        self.photo_grey = None
+        self.resized = None
+        self.scan = None
+        self.template = None
         self.timers_dict = {}
-        self.content_df =  None
+        self.transform = None
+        
+    @classmethod
+    def from_path(cls, img_path:str):
+        document = cls()
+        document.img_path = img_path
+        document.photo = cv2.imread(img_path, 1)
+        document.photo_grey = cv2.imread(img_path, 0)
+        return document
 
     @classmethod
     def as_template(cls, img_path:str, orb):
-        document = cls(img_path)
+        document = cls.from_path(img_path)
         document.scan = document.photo
         document.resized = document.photo
         document.identify_keypoints(orb)
@@ -147,20 +165,19 @@ class Document(ABC):
         case_log['timers'] = self.timers_dict
         
         case_log['image_paths'] = {}
-        photo_output_path = os.path.join(log_path, '{}_photo.jpg'.format(case_id))
-        case_log['image_paths']['photo'] = photo_output_path
-        cv2.imwrite(photo_output_path, self.photo)
-        photo_grey_output_path = os.path.join(log_path, '{}_photo_grey.jpg'.format(case_id))
-        case_log['image_paths']['photo_grey'] = photo_grey_output_path
-        cv2.imwrite(photo_grey_output_path, self.photo_grey)
-        scan_output_path = os.path.join(log_path, '{}_scan.jpg'.format(case_id))
-        case_log['image_paths']['scan'] = scan_output_path
-        cv2.imwrite(scan_output_path, self.scan)
-        for field_name, row in self.content_df.iterrows():
-            crop_name = 'crop_{}'.format(field_name)
-            crop_output_path = os.path.join(log_path, '{}_{}.jpg'.format(case_id, crop_name))
-            case_log['image_paths'][crop_name] = crop_output_path
-            cv2.imwrite(crop_output_path, row['crop'])
+        image_name_list = ['photo', 'photo_grey', 'scan']
+        for image_name in image_name_list:
+            image = getattr(self, image_name, None)
+            if image is not None:
+                image_output_path = os.path.join(log_path, '{}_{}.jpg'.format(case_id, image_name))
+                case_log['image_paths'][image_name] = image_output_path
+                cv2.imwrite(image_output_path, image)
+        if getattr(self, 'content_df', None) is not None:
+            case_log['image_paths']['crops'] = {}
+            for field_name, row in self.content_df.iterrows():
+                crop_output_path = os.path.join(log_path, '{}_crop_{}.jpg'.format(case_id, field_name))
+                case_log['image_paths']['crops'][field_name] = crop_output_path
+                cv2.imwrite(crop_output_path, row['crop'])
         
         case_log_output_path = os.path.join(log_path, '{}_case_log.json'.format(case_id))
         with open(case_log_output_path, 'w') as fp:

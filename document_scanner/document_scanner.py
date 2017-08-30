@@ -132,7 +132,7 @@ class Document_scanner(ABC):
     def develop_document(self, img_path: str, debug: bool = False):
         start_time = time.time()
         self.logger.info('Start developing document %s', img_path)
-        document = Document(img_path)
+        document = Document.from_path(img_path)
         document.predict_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'

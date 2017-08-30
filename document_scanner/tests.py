@@ -1,5 +1,6 @@
 import os
 
+from document_scanner.document import Document
 from document_scanner.document_scanner import Document_scanner
 from document_scanner.os_wrapper import BASE_DIR_PATH, remove_dir
 from predict_client.mock_client import MockPredictClient
@@ -54,11 +55,22 @@ def test_mock_document_type_name():
 def test_save_images_and_case_log():
     scanner = Document_scanner(PATH_DICT_PATH, log_level='DEBUG')
     temp_dir = os.path.join(scanner.path_dict['data_dir_path'], 'temp')
-    assert not os.path.isdir(temp_dir)
-    for document_type_name, template in scanner.template_dict.items():
-        document = scanner.develop_document(template.img_path)
-        log_dir = os.path.join(temp_dir, document_type_name)
-        if not os.path.isdir(log_dir):
+    if not os.path.isdir(temp_dir):
+        for document_type_name, template in scanner.template_dict.items():
+            document = scanner.develop_document(template.img_path)
+            log_dir = os.path.join(temp_dir, document_type_name)
             os.makedirs(log_dir)
-        document.save_images_and_case_log(log_dir, document_type_name)
-    remove_dir(temp_dir)
+            document.save_images_and_case_log(log_dir, document_type_name)
+        remove_dir(temp_dir)
+    else:
+        assert False
+
+def test_save_images_and_case_log_with_empty_document():
+    document = Document()
+    temp_dir = os.path.join(os.path.split(PATH_DICT_PATH)[0], 'temp')
+    if not os.path.isdir(temp_dir):
+        os.makedirs(temp_dir)
+        document.save_images_and_case_log(log_path=temp_dir, case_id='test')
+        remove_dir(temp_dir)
+    else:
+        assert False
