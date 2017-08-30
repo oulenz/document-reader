@@ -20,7 +20,7 @@ class Document(ABC):
         self.photo_grey = cv2.imread(img_path, 0)
         self.error_reason = None
         self.timers_dict = {}
-        #self.photo_grey = cv2.cvtColor(self.photo, cv2.COLOR_BGR2GRAY)
+        self.content_df =  None
 
     @classmethod
     def as_template(cls, img_path:str, orb):
