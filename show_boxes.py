@@ -1,17 +1,12 @@
 import cv2
 
-import document_scanner as ds
+from document_scanner.document_scanner import Document_scanner
 
 
-def show_boxes(config_path: str, img_path: str) -> None:
-    config = ds.parse_config(config_path)
-    template = cv2.imread(config['template_path'], 0)
-
-    if img_path is not None:
-        photo = cv2.imread(img_path, 0)
-        image = ds.find_document(template, photo, debug = False)
-    else:
-        image = template
+def show_boxes(path_dict_path: str, img_path: str) -> None:
+    path_dict = Document_scanner.parse_path_dict(path_dict_path)
+    template = cv2.imread(path_dict['template_path'], 0)
+    image = cv2.imread(img_path, 0)
 
     boxes = ds.parse_boxes(config)
     ds.show_boxes(image, boxes)

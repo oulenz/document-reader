@@ -4,6 +4,7 @@ import os
 
 BASE_DIR_PATH = os.path.abspath(os.path.join(os.path.realpath(__file__), os.pardir, os.pardir))
 CURRENT_DIR_PATH = os.path.abspath(os.path.join(os.path.realpath(__file__), os.pardir))
+DEFAULT_PATH_DICT_PATH = os.path.join(BASE_DIR_PATH, 'data', 'paths.txt')
 
 def list_subfolders(folder_path):
     return [subfolder for subfolder in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, subfolder))]
