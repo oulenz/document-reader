@@ -72,7 +72,8 @@ class Document(ABC):
         self.resized = cv_wrapper.resize(self.photo_grey, height_to_use)
         self.identify_keypoints(orb)
         self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.kp_descriptors)
-        self.good_matches = cv_wrapper.select_good_matches(self.matches)
+        if self.matches is not None:
+            self.good_matches = cv_wrapper.select_good_matches(self.matches)
         self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 

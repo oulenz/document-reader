@@ -76,7 +76,7 @@ def get_matching_points(des_template, des_photo):
 
 def select_good_matches(matches):
     # remove matches that are likely to be incorrect, using Lowe's ratio test
-    return [m for (m, n) in matches if m.distance < 0.7 * n.distance]  # 0.65-0.8, false negatives-false positives
+    return [m[0] for m in matches if len(m) == 1 or (len(m) >= 2 and m[0].distance < 0.7 * m[1].distance)]  # 0.65-0.8, false negatives-false positives
 
 
 def find_transformation_and_mask(kp_template, kp_photo, matches):
