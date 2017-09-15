@@ -14,6 +14,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Read out form from photo')
     parser.add_argument('image_path', help='The location of the image file')
     parser.add_argument('--path_dict_path', help='The location of the path dict')
+    parser.add_argument('--mock_document_type_name', help='document_type_name to use')
     parser.add_argument('--debug', dest='debug', action='store_true',
                         help='Display pictures and values')
     args = parser.parse_args()

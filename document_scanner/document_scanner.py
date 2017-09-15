@@ -18,17 +18,32 @@ PADDING = 8
 
 class Document_scanner(ABC):
 
-    def __init__(self, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO', mock_document_type_name = None):
-        logging.config.dictConfig(self.get_logging_config_dict(log_level))
-        self.logger = logging.getLogger(__name__)
-        self.path_dict = self.parse_path_dict(path_dict_path)
-        self.orb = get_orb()
-        self.inceptionv4_client = inceptionv4_client
-        self.mock_document_type_name = mock_document_type_name
-        self.document_type_model_and_labels = None if mock_document_type_name else self.parse_document_type_model(self.path_dict['document_type_model_path'], inceptionv4_client is not None)
-        self.field_data_df = self.parse_field_data(self.path_dict['field_data_path'])
-        self.model_df = self.parse_model_data(self.path_dict['model_data_path'], self.path_dict['data_dir_path'])
-        self.template_dict = self.parse_document_type_data(self.path_dict['document_type_data_path'], self.path_dict['data_dir_path'])
+    def __init__(self):
+        pass
+    
+    @classmethod
+    def for_document_identification(cls, path_dict_path: str, mock_document_type_name):
+        scanner = Document_scanner()
+        scanner.path_dict = cls.parse_path_dict(path_dict_path)
+        scanner.orb = get_orb()
+        scanner.mock_document_type_name = mock_document_type_name
+        scanner.template_dict = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
+        return scanner
+    
+    @classmethod
+    def complete(cls, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO', mock_document_type_name = None):
+        scanner = Document_scanner()
+        logging.config.dictConfig(cls.get_logging_config_dict(log_level))
+        scanner.logger = logging.getLogger(__name__)
+        scanner.path_dict = cls.parse_path_dict(path_dict_path)
+        scanner.orb = get_orb()
+        scanner.inceptionv4_client = inceptionv4_client
+        scanner.mock_document_type_name = mock_document_type_name
+        scanner.document_type_model_and_labels = None if mock_document_type_name else cls.parse_document_type_model(scanner.path_dict['document_type_model_path'], inceptionv4_client is not None)
+        scanner.field_data_df = cls.parse_field_data(scanner.path_dict['field_data_path'])
+        scanner.model_df = cls.parse_model_data(scanner.path_dict['model_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.template_dict = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
+        return scanner
 
     @staticmethod
     def get_logging_config_dict(log_level):
