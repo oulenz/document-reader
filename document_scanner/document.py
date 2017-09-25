@@ -18,7 +18,6 @@ class Document(ABC):
         self.content_df = None
         self.document_type_name = None
         self.error_reason = None
-        self.good_matches = None
         self.img_path = None
         self.keypoints = None
         self.kp_descriptors = None
@@ -72,8 +71,6 @@ class Document(ABC):
         self.resized = cv_wrapper.resize(self.photo_grey, height_to_use)
         self.identify_keypoints(orb)
         self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.kp_descriptors)
-        if self.matches is not None:
-            self.good_matches = cv_wrapper.select_good_matches(self.matches)
         self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
@@ -82,7 +79,7 @@ class Document(ABC):
 
     def create_scan(self):
         start_time = time.time()
-        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template.keypoints, self.keypoints, self.good_matches)
+        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template.keypoints, self.keypoints, self.matches)
         self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, self.template.photo.shape)
         self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
@@ -105,7 +102,7 @@ class Document(ABC):
 
     def print_template_match_quality(self):
         print(str(len(self.template.keypoints)) + ' points in template, ' + str(len(self.keypoints)) + ' in photo, ' +
-              str(len(self.matches)) + ' matches, ' + str(len(self.good_matches)) + ' good matches')
+              str(len(self.matches)) + ' good matches')
         return
 
     def show_match_with_template(self):
@@ -117,14 +114,14 @@ class Document(ABC):
             dst = cv2.perspectiveTransform(pts, self.transform)
             cv2.polylines(photo_with_match, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
         else:
-            print("Not enough matches are found - %d/%d" % (len(self.good_matches), MIN_MATCH_COUNT))
+            print("Not enough matches are found - %d/%d" % (len(self.matches), MIN_MATCH_COUNT))
 
         draw_params = dict(matchColor=(0, 255, 0),  # draw matches in green color
                            singlePointColor=None,
                            matchesMask=self.mask.ravel().tolist() if self.mask is not None else None,  # draw only inliers
                            flags=2)
 
-        photo_with_match = cv2.drawMatches(self.template.photo, self.template.keypoints, photo_with_match, self.keypoints, self.good_matches, None, **draw_params)
+        photo_with_match = cv2.drawMatches(self.template.photo, self.template.keypoints, photo_with_match, self.keypoints, self.matches, None, **draw_params)
 
         cv_wrapper.display(photo_with_match)
         return
