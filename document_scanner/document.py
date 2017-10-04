@@ -12,6 +12,20 @@ import document_scanner.tfw_wrapper as tfw_wrapper
 
 MIN_MATCH_COUNT = 10
 
+class Image_data(ABC):
+    
+    def __init__(self):
+        self.keypoints = None
+        self.kp_descriptors = None
+        self.photo = None
+        
+    @classmethod
+    def of_photo(cls, photo, orb):
+        image_data = cls()
+        image_data.photo = photo
+        image_data.keypoints, image_data.kp_descriptors = cv_wrapper.get_keypoints_and_descriptors(photo, orb)
+        return image_data
+
 
 class Document(ABC):
 
@@ -20,34 +34,24 @@ class Document(ABC):
         self.document_type_name = None
         self.error_reason = None
         self.field_df = None
+        self.image_data = None
         self.img_path = None
-        self.keypoints = None
-        self.kp_descriptors = None
         self.mask = None
         self.matches = None
         self.photo = None
         self.photo_grey = None
-        self.resized = None
         self.scan = None
-        self.template = None
+        self.template_data = None
         self.timer_dict = {}
         self.transform = None
         
     @classmethod
-    def from_path(cls, img_path:str, document_content_class=None):
+    def from_path(cls, img_path:str, document_content_class):
         document = cls()
         document.img_path = img_path
         document.photo = cv2.imread(img_path, 1)
         document.photo_grey = cv2.imread(img_path, 0)
-        document.content = document_content_class() if document_content_class is not None else None
-        return document
-
-    @classmethod
-    def as_template(cls, img_path:str, orb):
-        document = cls.from_path(img_path)
-        document.scan = document.photo
-        document.resized = document.photo
-        document.identify_keypoints(orb)
+        document.content = document_content_class()
         return document
 
     def predict_document_type(self, model_and_labels, pretrained_client = None, mock_document_type_name = None):
@@ -61,29 +65,29 @@ class Document(ABC):
         self.edged = cv_wrapper.find_edges(self.photo_grey)
         return
 
-    def identify_keypoints(self, orb):
-        # Find the keypoints and descriptors.
-        self.keypoints, self.kp_descriptors = cv_wrapper.get_keypoints_and_descriptors(self.resized, orb)
-        return
-
     def find_match(self, template, orb):
         start_time = time.time()
-        self.template = template
-        h, w = template.photo.shape[:2]
-        height_to_use = int(h * 1.2)
-        self.resized = cv_wrapper.resize(self.photo_grey, height_to_use)
-        self.identify_keypoints(orb)
-        self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.kp_descriptors)
+        self.template_data = template
+        resized = self.resize_to_template(self.photo_grey, template.photo.shape)
+        self.image_data = Image_data.of_photo(resized, orb)
+        self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors)
         self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
+    
+    @staticmethod
+    def resize_to_template(photo, template_shape):
+        multiplication_factor = 1.2
+        h, w = template_shape[:2]
+        height_to_use = int(h * multiplication_factor)
+        return cv_wrapper.resize(photo, height_to_use)
 
     def can_create_scan(self):
         return len(self.matches) > MIN_MATCH_COUNT
 
     def create_scan(self):
         start_time = time.time()
-        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template.keypoints, self.keypoints, self.matches)
-        self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, self.template.photo.shape)
+        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template_data.keypoints, self.image_data.keypoints, self.matches)
+        self.scan = cv_wrapper.reverse_transformation(self.image_data.photo, self.transform, self.template_data.photo.shape)
         self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
@@ -109,15 +113,15 @@ class Document(ABC):
         return self.field_df['label'].to_dict() if self.field_df is not None else None
 
     def print_template_match_quality(self):
-        print(str(len(self.template.keypoints)) + ' points in template, ' + str(len(self.keypoints)) + ' in photo, ' +
+        print(str(len(self.template_data.keypoints)) + ' points in template, ' + str(len(self.image_data.keypoints)) + ' in photo, ' +
               str(len(self.matches)) + ' good matches')
         return
 
     def show_match_with_template(self):
-        photo_with_match = self.resized.copy()
+        photo_with_match = self.image_data.photo.copy()
 
         if self.can_create_scan():
-            h, w = self.template.photo.shape[:2]
+            h, w = self.template_data.photo.shape[:2]
             pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
             dst = cv2.perspectiveTransform(pts, self.transform)
             cv2.polylines(photo_with_match, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
@@ -129,7 +133,7 @@ class Document(ABC):
                            matchesMask=self.mask.ravel().tolist() if self.mask is not None else None,  # draw only inliers
                            flags=2)
 
-        photo_with_match = cv2.drawMatches(self.template.photo, self.template.keypoints, photo_with_match, self.keypoints, self.matches, None, **draw_params)
+        photo_with_match = cv2.drawMatches(self.template_data.photo, self.template_data.keypoints, photo_with_match, self.image_data.keypoints, self.matches, None, **draw_params)
 
         cv_wrapper.display(photo_with_match)
         return

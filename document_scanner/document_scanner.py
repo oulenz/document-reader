@@ -1,3 +1,4 @@
+import cv2
 import importlib
 import inspect
 import json
@@ -10,7 +11,7 @@ import time
 
 from abc import ABC
 from document_scanner.cv_wrapper import get_orb, pad_coords
-from document_scanner.document import Document
+from document_scanner.document import Document, Image_data
 from tfwrapper.models import TransferLearningModel
 from tfwrapper.models.frozen import FrozenInceptionV4
 from tfwrapper.models.nets import NeuralNet, ShallowCNN
@@ -171,15 +172,17 @@ class Document_scanner(ABC):
 
     def parse_document_type_data(self, document_type_data_path, data_dir_path):
         document_type_df = pd.read_csv(document_type_data_path, delimiter='|', comment='#')
-        document_type_df['template'] = document_type_df['template_path'].apply(lambda x: Document.as_template(os.path.join(data_dir_path, x), self.orb))
+        def get_image_data(img_name):
+            img = cv2.imread(os.path.join(data_dir_path, img_name), 0)
+            return Image_data.of_photo(img, self.orb)
+        document_type_df['template'] = document_type_df['template_path'].apply(get_image_data)
 
         return document_type_df.set_index('document_type_name')['template'].to_dict()
 
     def develop_document(self, img_path: str, debug: bool = False):
         start_time = time.time()
         self.logger.info('Start developing document %s', img_path)
-        document = Document.from_path(img_path)
-        document.content = self.document_content_class()
+        document = Document.from_path(img_path, self.document_content_class)
         document.predict_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'
