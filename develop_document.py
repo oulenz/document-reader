@@ -5,7 +5,8 @@ from document_scanner.os_wrapper import DEFAULT_PATH_DICT_PATH
 def develop_document(image_path: str, path_dict_path: str, debug: bool) -> None:
     path_dict_path = path_dict_path or DEFAULT_PATH_DICT_PATH
     scanner = Document_scanner.complete(path_dict_path)
-    scanner.develop_document(image_path, debug)
+    document = scanner.develop_document(image_path, debug)
+    print(document.content.get_response_text())
     return
 
 if __name__ == "__main__":

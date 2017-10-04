@@ -1,8 +1,10 @@
+import importlib
 import inspect
 import json
 import logging.config
 import os
 import pandas as pd
+import sys
 import tensorflow as tf
 import time
 
@@ -19,7 +21,16 @@ PADDING = 8
 class Document_scanner(ABC):
 
     def __init__(self):
-        pass
+        self.document_content_class = None
+        self.document_type_model_and_labels = None
+        self.field_data_df = None
+        self.inceptionv4_client = None
+        self.logger = None
+        self.mock_document_type_name = None
+        self.model_df = None
+        self.orb = None
+        self.path_dict = None
+        self.template_dict = None
     
     @classmethod
     def for_document_identification(cls, path_dict_path: str, mock_document_type_name):
@@ -43,7 +54,27 @@ class Document_scanner(ABC):
         scanner.field_data_df = cls.parse_field_data(scanner.path_dict['field_data_path'])
         scanner.model_df = cls.parse_model_data(scanner.path_dict['model_data_path'], scanner.path_dict['data_dir_path'])
         scanner.template_dict = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.document_content_class = scanner.get_class_from_module_path(scanner.path_dict['custom_code'])
         return scanner
+    
+    @staticmethod
+    def get_class_from_module_path(path):
+
+        folder_path, filename = os.path.split(path)
+        module_name = os.path.splitext(filename)[0]
+        class_name = module_name.capitalize()
+        
+        # more targeted way of loading module that avoids adding folder_path to the system path,
+        # but then how does one import sibling modules in module_at_path?
+        #spec = importlib.util.spec_from_file_location(module_name, path)
+        #module_at_path = importlib.util.module_from_spec(spec)
+        #spec.loader.exec_module(module_at_path)
+
+        sys.path.append(folder_path)
+        module_at_path = importlib.import_module(module_name)
+        class_at_path = getattr(module_at_path, class_name)
+        
+        return class_at_path
 
     @staticmethod
     def get_logging_config_dict(log_level):
@@ -148,6 +179,7 @@ class Document_scanner(ABC):
         start_time = time.time()
         self.logger.info('Start developing document %s', img_path)
         document = Document.from_path(img_path)
+        document.content = self.document_content_class()
         document.predict_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
         if document.document_type_name not in self.template_dict.keys():
             document.error_reason = 'document_type'
@@ -170,11 +202,13 @@ class Document_scanner(ABC):
             document.show_match_with_template()
             document.show_scan()
             document.show_boxes(self.field_data_df)
-        document.read_document(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
+        document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
         if debug:
-            print(document.get_content_labels_json())
-        self.logger.info('Successfully extracted content from document %s', img_path)
-        document.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+            print(document.get_field_labels_json())
+        self.logger.info('Cropped fields and processed with models')
+        document.evaluate_content(self.document_content_class)
+        self.logger.info('Evaluated content of document %s', img_path)
+        document.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return document
 
 

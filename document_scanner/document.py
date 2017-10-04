@@ -12,12 +12,14 @@ import document_scanner.tfw_wrapper as tfw_wrapper
 
 MIN_MATCH_COUNT = 10
 
+
 class Document(ABC):
 
     def __init__(self):
-        self.content_df = None
+        self.content = None
         self.document_type_name = None
         self.error_reason = None
+        self.field_df = None
         self.img_path = None
         self.keypoints = None
         self.kp_descriptors = None
@@ -28,15 +30,16 @@ class Document(ABC):
         self.resized = None
         self.scan = None
         self.template = None
-        self.timers_dict = {}
+        self.timer_dict = {}
         self.transform = None
         
     @classmethod
-    def from_path(cls, img_path:str):
+    def from_path(cls, img_path:str, document_content_class=None):
         document = cls()
         document.img_path = img_path
         document.photo = cv2.imread(img_path, 1)
         document.photo_grey = cv2.imread(img_path, 0)
+        document.content = document_content_class() if document_content_class is not None else None
         return document
 
     @classmethod
@@ -50,7 +53,7 @@ class Document(ABC):
     def predict_document_type(self, model_and_labels, pretrained_client = None, mock_document_type_name = None):
         start_time = time.time()
         self.document_type_name = mock_document_type_name or tfw_wrapper.label_img(self.photo_grey, *model_and_labels, pretrained_client)
-        self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
     # canny edge method, not currently used
@@ -71,7 +74,7 @@ class Document(ABC):
         self.resized = cv_wrapper.resize(self.photo_grey, height_to_use)
         self.identify_keypoints(orb)
         self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.kp_descriptors)
-        self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
     def can_create_scan(self):
@@ -81,24 +84,29 @@ class Document(ABC):
         start_time = time.time()
         self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template.keypoints, self.keypoints, self.matches)
         self.scan = cv_wrapper.reverse_transformation(self.resized, self.transform, self.template.photo.shape)
-        self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
-    def read_document(self, field_data_df, model_df):
+    def read_fields(self, field_data_df, model_df):
         start_time = time.time()
-        field_df = cv_wrapper.crop_sections(self.scan, field_data_df)
-        self.content_df = tfw_wrapper.label_image_df(field_df, model_df)
-        self.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        crop_df = cv_wrapper.crop_sections(self.scan, field_data_df)
+        self.field_df = tfw_wrapper.label_image_df(crop_df, model_df)
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
+    
+    def evaluate_content(self, document_content_class):
+        start_time = time.time()
+        self.content = document_content_class.from_fields(self.get_field_labels_dict())
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
 
-    def get_content_labels(self):
-        return self.content_df['label'] if self.content_df is not None else None
+    def get_field_labels(self):
+        return self.field_df['label'] if self.field_df is not None else None
 
-    def get_content_labels_json(self):
-        return self.content_df['label'].to_json() if self.content_df is not None else None
+    def get_field_labels_json(self):
+        return self.field_df['label'].to_json() if self.field_df is not None else None
 
-    def get_content_labels_dict(self):
-        return self.content_df['label'].to_dict() if self.content_df is not None else None
+    def get_field_labels_dict(self):
+        return self.field_df['label'].to_dict() if self.field_df is not None else None
 
     def print_template_match_quality(self):
         print(str(len(self.template.keypoints)) + ' points in template, ' + str(len(self.keypoints)) + ' in photo, ' +
@@ -159,8 +167,10 @@ class Document(ABC):
         case_log = {}
         case_log['case_id'] = case_id
         case_log['log_path'] = log_path
-        case_log['response'] = self.get_content_labels_dict()
-        case_log['timers'] = self.timers_dict
+        case_log['predictions'] = self.get_prediction_dict()
+        case_log['timers'] = self.timer_dict
+        if getattr(self.content, 'get_case_log', None) is not None:
+            case_log['content'] = self.content.get_case_log()
         
         case_log['image_paths'] = {}
         image_name_list = ['photo', 'photo_grey', 'scan']
@@ -170,9 +180,9 @@ class Document(ABC):
                 image_output_path = os.path.join(log_path, '{}_{}.jpg'.format(case_id, image_name))
                 case_log['image_paths'][image_name] = image_output_path
                 cv2.imwrite(image_output_path, image)
-        if getattr(self, 'content_df', None) is not None:
+        if getattr(self, 'field_df', None) is not None:
             case_log['image_paths']['crops'] = {}
-            for field_name, row in self.content_df.iterrows():
+            for field_name, row in self.field_df.iterrows():
                 crop_output_path = os.path.join(log_path, '{}_crop_{}.jpg'.format(case_id, field_name))
                 case_log['image_paths']['crops'][field_name] = crop_output_path
                 cv2.imwrite(crop_output_path, row['crop'])
@@ -181,3 +191,11 @@ class Document(ABC):
         with open(case_log_output_path, 'w') as fp:
             json.dump(case_log, fp)
         return None
+    
+    def get_prediction_dict(self):
+        prediction_dict = {}
+        prediction_dict['document_type_name'] = getattr(self, 'document_type_name')
+        prediction_dict['field_labels'] = self.get_field_labels_dict()
+        prediction_dict['document_error'] = getattr(self, 'error_reason')
+        return prediction_dict
+    
