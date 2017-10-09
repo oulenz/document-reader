@@ -15,7 +15,7 @@ def process(src_path: str,  path_dict_path: str, mock_document_type_name: str, d
     scanner = Document_scanner(path_dict_path, log_level='WARNING', mock_document_type_name=mock_document_type_name)
     
     scans_path = os.path.join(os.path.split(src_path)[0], 'scans')
-    for document_type_name in scanner.template_dict.keys():
+    for document_type_name in scanner.template_df.keys():
         if not os.path.isdir(os.path.join(scans_path, document_type_name)):
             os.makedirs(os.path.join(scans_path, document_type_name))
 
