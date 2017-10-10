@@ -30,7 +30,7 @@ class Image_data(ABC):
 class Document(ABC):
 
     def __init__(self):
-        self.content = None
+        self.logic = None
         self.document_type_name = None
         self.error_reason = None
         self.field_df = None
@@ -46,12 +46,12 @@ class Document(ABC):
         self.transform = None
         
     @classmethod
-    def from_path(cls, img_path:str, document_content_class):
+    def from_path(cls, img_path:str, business_logic_class):
         document = cls()
         document.img_path = img_path
         document.photo = cv2.imread(img_path, 1)
         document.photo_grey = cv2.imread(img_path, 0)
-        document.content = document_content_class()
+        document.logic = business_logic_class()
         return document
 
     def predict_document_type(self, model_and_labels, pretrained_client = None, mock_document_type_name = None):
@@ -100,7 +100,7 @@ class Document(ABC):
     
     def evaluate_content(self, document_content_class):
         start_time = time.time()
-        self.content = document_content_class.from_fields(self.get_field_labels_dict())
+        self.logic = document_content_class.from_fields(self.get_field_labels_dict())
         self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
 
     def get_field_labels(self):
@@ -173,8 +173,8 @@ class Document(ABC):
         case_log['log_path'] = log_path
         case_log['predictions'] = self.get_prediction_dict()
         case_log['timers'] = self.timer_dict
-        if getattr(self.content, 'get_case_log', None) is not None:
-            case_log['content'] = self.content.get_case_log()
+        if getattr(self.logic, 'get_case_log', None) is not None:
+            case_log['content'] = self.logic.get_case_log()
         
         case_log['image_paths'] = {}
         image_name_list = ['photo', 'photo_grey', 'scan']

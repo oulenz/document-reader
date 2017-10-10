@@ -7,9 +7,9 @@ def identify_template(image_path: str, mock_document_type_name: str, path_dict_p
     path_dict_path = path_dict_path or DEFAULT_PATH_DICT_PATH
     scanner = Document_scanner.for_document_identification(path_dict_path, mock_document_type_name)
 
-    document = Document.from_path(image_path)
+    document = Document.from_path(image_path, scanner.business_logic_class)
     #document.document_type_name = mock_document_type_name
-    document.find_match(scanner.template_dict[mock_document_type_name], scanner.orb)
+    document.find_match(scanner.template_df.loc[mock_document_type_name, 'template'], scanner.orb)
     if debug:
         document.print_template_match_quality()
     if not document.can_create_scan():

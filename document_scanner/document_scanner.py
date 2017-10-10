@@ -34,16 +34,17 @@ class Document_scanner(ABC):
     
     @classmethod
     def for_document_identification(cls, path_dict_path: str, mock_document_type_name):
-        scanner = Document_scanner()
+        scanner = cls()
         scanner.path_dict = cls.parse_path_dict(path_dict_path)
         scanner.orb = get_orb()
         scanner.mock_document_type_name = mock_document_type_name
         scanner.template_df = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.business_logic_class = get_class_from_module_path(scanner.path_dict['business_logic_class_path'])
         return scanner
     
     @classmethod
     def for_document_content(cls, path_dict_path: str):
-        scanner = Document_scanner()
+        scanner = cls()
         scanner.path_dict = cls.parse_path_dict(path_dict_path)
         scanner.field_data_df = cls.parse_field_data(scanner.path_dict['field_data_path'])
         scanner.model_df = cls.parse_model_data(scanner.path_dict['model_data_path'], scanner.path_dict['data_dir_path'])
@@ -51,8 +52,8 @@ class Document_scanner(ABC):
         return scanner
     
     @classmethod
-    def complete(cls, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO', mock_document_type_name = None):
-        scanner = Document_scanner()
+    def complete(cls, path_dict_path: str, inceptionv4_client=None, log_level='INFO', mock_document_type_name=None):
+        scanner = cls()
         logging.config.dictConfig(cls.get_logging_config_dict(log_level))
         scanner.logger = logging.getLogger(__name__)
         scanner.path_dict = cls.parse_path_dict(path_dict_path)
