@@ -30,7 +30,7 @@ def generate_predictions(testset_path, document_type_name, predictions_name, pat
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Read out form from photo')
+    parser = argparse.ArgumentParser(description='Predict labels for a testset of documents')
     parser.add_argument('testset_path', help='The location of the testset')
     parser.add_argument('document_type_name', help='The document type')
     parser.add_argument('predictions_name', help='Name to be used for the predictions filename', nargs='?')

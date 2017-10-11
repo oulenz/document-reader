@@ -206,7 +206,7 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Read out form from photo')
+    parser = argparse.ArgumentParser(description='Compare predicted labels of a testset with ground truth')
     parser.add_argument('predictions_path', help='The location of the json file with the predictions')
     parser.add_argument('ground_truth_path', help='The location of the json file with the ground truth')
     parser.add_argument('--path_dict_path', help='The location of the path dict')
