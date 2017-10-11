@@ -122,34 +122,42 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
         if not result_missing and not result_wrong:
             documents_with_correct_results.append(filename)
 
-    print('---- Confusion matrices ----')
+    response_list = []
+    response_list.append('---- Confusion matrices ----')
     for field_type, confusion_matrix in confusion_matrices.items():
-        print(field_type)
-        print(confusion_matrix)
+        response_list.append(field_type)
+        response_list.append(str(confusion_matrix))
 
-    print('\n')
+    response_list.append('')
 
-    print('---- Percentages ----')
+    response_list.append('---- Percentages ----')
     for field_type, perfect_list in perfect_fields.items():
-        print('Forms with perfect fiels of type {}'.format(field_type))
-        print(len(perfect_list) / len(testset_predictions))
-    print('Forms with all field types perfect')
-    print(len(perfect_matches) / len(testset_predictions))
+        response_list.append('Forms with perfect fiels of type {}'.format(field_type))
+        response_list.append(str(len(perfect_list) / len(testset_predictions)))
+    response_list.append('Forms with all field types perfect')
+    response_list.append(str(len(perfect_matches) / len(testset_predictions)))
 
-    print('\n')
+    response_list.append('')
 
-    print('---- Documents with wrong results ----')
-    print(len(documents_with_wrong_results) / len(testset_predictions), len(documents_with_wrong_results))
-    print(sorted(documents_with_wrong_results))
-    print('---- Documents with missing results ----')
-    print(len(documents_with_missing_results) / len(testset_predictions), len(documents_with_missing_results))
-    print(sorted(documents_with_missing_results))
+    response_list.append('---- Documents with wrong results ----')
+    response_list.append(str(len(documents_with_wrong_results) / len(testset_predictions)) + ' ' + str(len(documents_with_wrong_results)))
+    response_list.append(str(sorted(documents_with_wrong_results)))
+    response_list.append('---- Documents with missing results ----')
+    response_list.append(str(len(documents_with_missing_results) / len(testset_predictions)) + ' ' + str(len(documents_with_missing_results)))
+    response_list.append(str(sorted(documents_with_missing_results)))
 
-    print('\n')
-    print('---- Documents with correct results ----')
-    print(len(documents_with_correct_results) / len(testset_predictions), len(documents_with_correct_results))
+    response_list.append('')
+    response_list.append('---- Documents with correct results ----')
+    response_list.append(str(len(documents_with_correct_results) / len(testset_predictions)) + ' ' + str(len(documents_with_correct_results)))
+
+    response = '\n'.join(response_list)
+    print(response)
 
     predictions_folder, predictions_filename = os.path.split(predictions_path)
+    response_path = os.path.join(predictions_folder, 'evaluation')
+    with open(response_path, 'w') as f:
+        f.write(response)
+    
     predictions_name, _ = os.path.splitext(predictions_filename)
     eval_store_path = os.path.join(os.path.split(predictions_path)[0], 'evaluation_{}'.format(predictions_name))
     documents_path = predictions_folder
