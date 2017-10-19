@@ -10,7 +10,7 @@ def identity(x):
     return x
 
 
-def compose (*functions):
+def compose(*functions):
     def inner(arg):
         for f in reversed(functions):
             arg = f(arg)

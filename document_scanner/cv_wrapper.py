@@ -54,10 +54,12 @@ def get_flann_index_params():
                               multi_probe_level=1)  # 1-2
 
 
-def resize(img, height):
+def resize(img, length):
+    if not length:
+        return img
     h, w = img.shape[:2]
-    ratio = height/h
-    return cv2.resize(img, (int(ratio*w), height))
+    new_height, new_width = (length, int((length/h)*w)) if h > w else (int((length/w)*h), length)
+    return cv2.resize(img, (new_width, new_height))
 
 
 def display(*imgs):

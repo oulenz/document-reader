@@ -191,6 +191,7 @@ class Document_scanner(ABC):
             self.logger.info('Identified insufficient points for template matching; aborting')
             return document
         self.logger.debug('Identified points for template matching')
+        document.find_transform_and_mask()
         document.create_scan()
         self.logger.debug('Created scan from original photo')
         if debug:

@@ -78,18 +78,31 @@ class Document(ABC):
     def resize_to_template(photo, template_shape):
         multiplication_factor = 1.2
         h, w = template_shape[:2]
-        height_to_use = int(h * multiplication_factor)
-        return cv_wrapper.resize(photo, height_to_use)
+        length_to_use = int(max(h, w) * multiplication_factor)
+        return cv_wrapper.resize(photo, length_to_use)
 
     def can_create_scan(self):
         return len(self.matches) > MIN_MATCH_COUNT
+    
+    def find_transform_and_mask(self):
+        start_time = time.time()
+        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template_data.keypoints, self.image_data.keypoints, self.matches)
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        return
 
     def create_scan(self):
         start_time = time.time()
-        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template_data.keypoints, self.image_data.keypoints, self.matches)
         self.scan = cv_wrapper.reverse_transformation(self.image_data.photo, self.transform, self.template_data.photo.shape)
         self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
+
+    def find_corners(self):
+        start_time = time.time()
+        h, w = self.template_data.photo.shape[:2]
+        pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
+        corners = np.int32(cv2.perspectiveTransform(pts, self.transform))
+        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        return corners
 
     def read_fields(self, field_data_df, model_df):
         start_time = time.time()
