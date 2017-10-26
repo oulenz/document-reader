@@ -166,9 +166,9 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
     false_negatives_path = os.path.join(eval_store_path, 'false_negatives')
     false_positives_path = os.path.join(eval_store_path, 'false_positives')
 
-    documents_with_wrong_results_path = os.path.join(eval_store_path, 'documents_with_wrong_results_path')
-    documents_with_missing_results_path = os.path.join(eval_store_path, 'documents_with_missing_results_path')
-    documents_with_correct_results_path = os.path.join(eval_store_path, 'documents_with_correct_results_path')
+    documents_with_wrong_results_path = os.path.join(eval_store_path, 'documents_with_wrong_results')
+    documents_with_missing_results_path = os.path.join(eval_store_path, 'documents_with_missing_results')
+    documents_with_correct_results_path = os.path.join(eval_store_path, 'documents_with_correct_results')
 
     os.makedirs(eval_store_path)
     os.makedirs(documents_with_wrong_results_path)
