@@ -1,7 +1,7 @@
 import cv2
 import os
 
-from document_scanner.document import Document
+from document_scanner.cv_wrapper import crop_sections
 from document_scanner.document_scanner import Document_scanner
 from document_scanner.os_wrapper import DEFAULT_PATH_DICT_PATH
 
@@ -29,16 +29,13 @@ def process(src_path: str, path_dict_path: str, mock_document_type_name: str, de
         file_ext = '.jpg'  # always save as .jpg because for the moment, tensorflow expects jpg
         file_stem = file_stem[:-len('_scan')] if file_stem.endswith('_scan') else file_stem
         
-        document = Document()
-        document.scan = cv2.imread(img_path, 0)
-        document.document_type_name = mock_document_type_name
+        scan = cv2.imread(img_path, 0)
+        field_df = crop_sections(scan, scanner.field_data_df.xs(mock_document_type_name))
+        #field_df = field_df.merge(scanner.field_data_df.xs(mock_document_type_name), left_index = True, right_index = True)
 
-        document.read_document(scanner.field_data_df.xs(document.document_type_name),
-                               scanner.model_df.xs(document.document_type_name))
-
-        df = document.content_df.merge(scanner.field_data_df.xs(document.document_type_name), left_index = True, right_index = True)
-        for box_name, row in df.iterrows():
-            filename = os.path.join(crops_path, document.document_type_name, row['model_name'], file_stem + '_' + box_name + file_ext)
+        for box_name, row in field_df.iterrows():
+            #print(row)
+            filename = os.path.join(crops_path, mock_document_type_name, row['model_name'], file_stem + '_' + box_name + file_ext)
             if debug:
                 print(filename)
             cv2.imwrite(filename, row['crop'])

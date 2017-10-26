@@ -1,3 +1,4 @@
+import cv2
 import inspect
 import json
 import logging.config
@@ -8,7 +9,8 @@ import time
 
 from abc import ABC
 from document_scanner.cv_wrapper import get_orb, pad_coords
-from document_scanner.document import Document
+from document_scanner.document import Document, Image_data
+from document_scanner.py_wrapper import get_class_from_module_path
 from tfwrapper.models import TransferLearningModel
 from tfwrapper.models.frozen import FrozenInceptionV4
 from tfwrapper.models.nets import NeuralNet, ShallowCNN
@@ -18,17 +20,52 @@ PADDING = 8
 
 class Document_scanner(ABC):
 
-    def __init__(self, path_dict_path: str, inceptionv4_client = None, log_level = 'INFO', mock_document_type_name = None):
-        logging.config.dictConfig(self.get_logging_config_dict(log_level))
-        self.logger = logging.getLogger(__name__)
-        self.path_dict = self.parse_path_dict(path_dict_path)
-        self.orb = get_orb()
-        self.inceptionv4_client = inceptionv4_client
-        self.mock_document_type_name = mock_document_type_name
-        self.document_type_model_and_labels = None if mock_document_type_name else self.parse_document_type_model(self.path_dict['document_type_model_path'], inceptionv4_client is not None)
-        self.field_data_df = self.parse_field_data(self.path_dict['field_data_path'])
-        self.model_df = self.parse_model_data(self.path_dict['model_data_path'], self.path_dict['data_dir_path'])
-        self.template_dict = self.parse_document_type_data(self.path_dict['document_type_data_path'], self.path_dict['data_dir_path'])
+    def __init__(self):
+        self.business_logic_class = None
+        self.document_type_model_and_labels = None
+        self.field_data_df = None
+        self.inceptionv4_client = None
+        self.logger = None
+        self.mock_document_type_name = None
+        self.model_df = None
+        self.orb = None
+        self.path_dict = None
+        self.template_df = None
+    
+    @classmethod
+    def for_document_identification(cls, path_dict_path: str, mock_document_type_name):
+        scanner = cls()
+        scanner.path_dict = cls.parse_path_dict(path_dict_path)
+        scanner.orb = get_orb()
+        scanner.mock_document_type_name = mock_document_type_name
+        scanner.template_df = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.business_logic_class = get_class_from_module_path(scanner.path_dict['business_logic_class_path'])
+        return scanner
+    
+    @classmethod
+    def for_document_content(cls, path_dict_path: str):
+        scanner = cls()
+        scanner.path_dict = cls.parse_path_dict(path_dict_path)
+        scanner.field_data_df = cls.parse_field_data(scanner.path_dict['field_data_path'])
+        scanner.model_df = cls.parse_model_data(scanner.path_dict['model_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.business_logic_class = get_class_from_module_path(scanner.path_dict['business_logic_class_path'])
+        return scanner
+    
+    @classmethod
+    def complete(cls, path_dict_path: str, inceptionv4_client=None, log_level='INFO', mock_document_type_name=None):
+        scanner = cls()
+        logging.config.dictConfig(cls.get_logging_config_dict(log_level))
+        scanner.logger = logging.getLogger(__name__)
+        scanner.path_dict = cls.parse_path_dict(path_dict_path)
+        scanner.orb = get_orb()
+        scanner.inceptionv4_client = inceptionv4_client
+        scanner.mock_document_type_name = mock_document_type_name
+        scanner.document_type_model_and_labels = None if mock_document_type_name else cls.parse_document_type_model(scanner.path_dict['document_type_model_path'], inceptionv4_client is not None)
+        scanner.field_data_df = cls.parse_field_data(scanner.path_dict['field_data_path'])
+        scanner.model_df = cls.parse_model_data(scanner.path_dict['model_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.template_df = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
+        scanner.business_logic_class = get_class_from_module_path(scanner.path_dict['business_logic_class_path'])
+        return scanner
 
     @staticmethod
     def get_logging_config_dict(log_level):
@@ -125,21 +162,26 @@ class Document_scanner(ABC):
 
     def parse_document_type_data(self, document_type_data_path, data_dir_path):
         document_type_df = pd.read_csv(document_type_data_path, delimiter='|', comment='#')
-        document_type_df['template'] = document_type_df['template_path'].apply(lambda x: Document.as_template(os.path.join(data_dir_path, x), self.orb))
+        def get_image_data(img_path):
+            img = cv2.imread(img_path, 0)
+            return Image_data.of_photo(img, self.orb)
+        
+        document_type_df['image_path'] = document_type_df['image_path'].apply(lambda x: os.path.join(data_dir_path, x))
+        document_type_df['template'] = document_type_df['image_path'].apply(get_image_data)
 
-        return document_type_df.set_index('document_type_name')['template'].to_dict()
+        return document_type_df.set_index('document_type_name')
 
     def develop_document(self, img_path: str, debug: bool = False):
         start_time = time.time()
         self.logger.info('Start developing document %s', img_path)
-        document = Document.from_path(img_path)
+        document = Document.from_path(img_path, self.business_logic_class)
         document.predict_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
-        if document.document_type_name not in self.template_dict.keys():
+        if document.document_type_name not in self.template_df.index:
             document.error_reason = 'document_type'
             self.logger.info('Predicted document type as %s, which cannot be handled; aborting', document.document_type_name)
             return document
         self.logger.debug('Predicted document type as %s', document.document_type_name)
-        document.find_match(self.template_dict[document.document_type_name], self.orb)
+        document.find_match(self.template_df.loc[document.document_type_name, 'template'], self.orb)
         if debug:
             document.print_template_match_quality()
         if not document.can_create_scan():
@@ -149,17 +191,20 @@ class Document_scanner(ABC):
             self.logger.info('Identified insufficient points for template matching; aborting')
             return document
         self.logger.debug('Identified points for template matching')
+        document.find_transform_and_mask()
         document.create_scan()
         self.logger.debug('Created scan from original photo')
         if debug:
             document.show_match_with_template()
             document.show_scan()
             document.show_boxes(self.field_data_df)
-        document.read_document(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
+        document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
         if debug:
-            print(document.get_content_labels_json())
-        self.logger.info('Successfully extracted content from document %s', img_path)
-        document.timers_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+            print(document.get_field_labels_json())
+        self.logger.info('Cropped fields and processed with models')
+        document.evaluate_content(self.business_logic_class)
+        self.logger.info('Evaluated content of document %s', img_path)
+        document.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return document
 
 

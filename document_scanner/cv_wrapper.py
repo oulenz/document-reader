@@ -1,13 +1,14 @@
 # import the necessary packages
 import cv2
+import math
 import numpy as np
 
 # canny edge method, not currently used
 def find_edges(image):
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # convert to greyscale
-    gray = cv2.GaussianBlur(gray, (17, 17), 0) # blur
-    gray = cv2.bilateralFilter(gray,9,75,75) # what does this do again?
-    edged = cv2.Canny(gray, 100, 200, apertureSize=5) # find edges
+    grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) # convert to greyscale
+    grey = cv2.GaussianBlur(grey, (17, 17), 0) # blur
+    grey = cv2.bilateralFilter(grey, 9, 75, 75) # what does this do again?
+    edged = cv2.Canny(grey, 100, 200, apertureSize=5) # find edges
 
     # Blur, erode, dilate to remove noise. May have to look at net-effect
     edged = cv2.GaussianBlur(edged, (17, 17), 0)
@@ -16,7 +17,9 @@ def find_edges(image):
     edged = cv2.dilate(edged, kernel, iterations=1)
     return edged
 
+
 def get_keypoints_and_descriptors(img, orb, n=3):
+    #img = find_edges_2(img)
     # Gets keypoints from all parts of the image by subdividing it into n*n parts and calculating keypoints separately
     keypoints = []
     descriptors = []
@@ -34,11 +37,13 @@ def get_keypoints_and_descriptors(img, orb, n=3):
 
     return keypoints, np.concatenate(descriptors)
 
+
 def get_orb(n=3):
     # Initiate ORB detector
     return cv2.ORB_create(nfeatures=12000 // (n * n),  # find many features
                          patchSize=31,  # granularity
                          edgeThreshold=1)  # edge margin to ignore
+
 
 def get_flann_index_params():
     FLANN_INDEX_LSH = 6
@@ -49,10 +54,12 @@ def get_flann_index_params():
                               multi_probe_level=1)  # 1-2
 
 
-def resize(img, height):
+def resize(img, length):
+    if not length:
+        return img
     h, w = img.shape[:2]
-    ratio = height/h
-    return cv2.resize(img, (int(ratio*w), height))
+    new_height, new_width = (length, int((length/h)*w)) if h > w else (int((length/w)*h), length)
+    return cv2.resize(img, (new_width, new_height))
 
 
 def display(*imgs):
@@ -66,17 +73,19 @@ def get_matching_points(des_template, des_photo):
 
     flann_index_params = get_flann_index_params()
     flann_search_params = dict(checks=50)  # 50-100
+    flann_matcher = cv2.FlannBasedMatcher(flann_index_params, flann_search_params)
 
-    flann = cv2.FlannBasedMatcher(flann_index_params, flann_search_params)
-
-    matches = flann.knnMatch(des_template, des_photo, k=2)
-
+    matches = flann_matcher.knnMatch(des_template, des_photo, k=2)
+    
+    # Lowe's ratio test, removes matches that are likely to be incorrect
+    if matches is not None:
+        lowe_ratio = 0.7 # 0.65-0.8, false negatives-false positives
+        matches = [m[0] for m in matches if len(m) == 1 or (len(m) >= 2 and m[0].distance < lowe_ratio * m[1].distance)]
     return matches
-
-
-def select_good_matches(matches):
-    # remove matches that are likely to be incorrect, using Lowe's ratio test
-    return [m[0] for m in matches if len(m) == 1 or (len(m) >= 2 and m[0].distance < 0.7 * m[1].distance)]  # 0.65-0.8, false negatives-false positives
+        
+        
+def get_distance(x, y):
+    return math.hypot(x[0] - y[0], x[1] - y[1])
 
 
 def find_transformation_and_mask(kp_template, kp_photo, matches):
@@ -86,8 +95,6 @@ def find_transformation_and_mask(kp_template, kp_photo, matches):
 
     # use RANSAC method to discount suspect matches
     transform, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-    #transform = cv2.estimateRigidTransform(src_pts, dst_pts, True)
-
     return transform, mask
 
 

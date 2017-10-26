@@ -30,16 +30,16 @@ def classify_img_series(img_series, model):
     return yhat.apply(lambda x: np.argmax(x))
 
 
-def label_image_df(df_with_images, model_df):
-    content_df = pd.DataFrame()
+def label_image_df(crop_df, model_df):
+    field_df = pd.DataFrame()
 
-    for model_name, fields_of_model_df in df_with_images.groupby(['model_name']):
+    for model_name, fields_of_model_df in crop_df.groupby(['model_name']):
         model, label_dict = model_df.loc[model_name, ['model', 'label_dict']]
         #TODO: build in predict as label into tfwrapper
         classes = classify_img_series(fields_of_model_df['crop'], model)
         labels = classes.apply(lambda x: label_dict[x])
         new_content = pd.DataFrame(fields_of_model_df['crop'].copy())
         new_content['label'] = labels
-        content_df = content_df.append(new_content)
+        field_df = field_df.append(new_content)
 
-    return content_df
+    return field_df

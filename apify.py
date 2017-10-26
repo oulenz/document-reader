@@ -82,8 +82,8 @@ def predict():
     scan_path = os.path.join(request_path, 'scan.jpg')
     cv2.imwrite(scan_path, document.scan, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
-    content_json = document.get_content_labels_json()
-    content = document.get_content_labels()
+    content_json = document.get_field_labels_json()
+    content = document.get_field_labels()
 
     content_path = os.path.join(request_path, 'content.json')
 
