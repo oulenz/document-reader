@@ -1,16 +1,16 @@
 import cv2
-import inspect
 import json
 import numpy as np
 import os
-import time
 
 from abc import ABC
 
 import document_scanner.cv_wrapper as cv_wrapper
 import document_scanner.tfw_wrapper as tfw_wrapper
+from document_scanner.py_wrapper import store_time
 
 MIN_MATCH_COUNT = 10
+
 
 class Image_data(ABC):
     
@@ -30,6 +30,7 @@ class Image_data(ABC):
 class Document(ABC):
 
     def __init__(self):
+        self._method_times = []
         self.logic = None
         self.document_type_name = None
         self.error_reason = None
@@ -42,7 +43,6 @@ class Document(ABC):
         self.photo_grey = None
         self.scan = None
         self.template_data = None
-        self.timer_dict = {}
         self.transform = None
         
     @classmethod
@@ -54,10 +54,9 @@ class Document(ABC):
         document.logic = business_logic_class()
         return document
 
-    def predict_document_type(self, model_and_labels, pretrained_client = None, mock_document_type_name = None):
-        start_time = time.time()
+    @store_time
+    def predict_document_type(self, model_and_labels, pretrained_client=None, mock_document_type_name=None):
         self.document_type_name = mock_document_type_name or tfw_wrapper.label_img(self.photo_grey, *model_and_labels, pretrained_client)
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
     # canny edge method, not currently used
@@ -65,13 +64,12 @@ class Document(ABC):
         self.edged = cv_wrapper.find_edges(self.photo_grey)
         return
 
+    @store_time
     def find_match(self, template, orb):
-        start_time = time.time()
         self.template_data = template
         resized = self.resize_to_template(self.photo_grey, template.photo.shape)
         self.image_data = Image_data.of_photo(resized, orb)
         self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors)
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
     
     @staticmethod
@@ -83,38 +81,33 @@ class Document(ABC):
 
     def can_create_scan(self):
         return len(self.matches) > MIN_MATCH_COUNT
-    
+
+    @store_time
     def find_transform_and_mask(self):
-        start_time = time.time()
         self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template_data.keypoints, self.image_data.keypoints, self.matches)
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
+    @store_time
     def create_scan(self):
-        start_time = time.time()
         self.scan = cv_wrapper.reverse_transformation(self.image_data.photo, self.transform, self.template_data.photo.shape)
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
 
+    @store_time
     def find_corners(self):
-        start_time = time.time()
         h, w = self.template_data.photo.shape[:2]
         pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
         corners = np.int32(cv2.perspectiveTransform(pts, self.transform))
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return corners
 
+    @store_time
     def read_fields(self, field_data_df, model_df):
-        start_time = time.time()
         crop_df = cv_wrapper.crop_sections(self.scan, field_data_df)
         self.field_df = tfw_wrapper.label_image_df(crop_df, model_df)
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
         return
-    
+
+    @store_time
     def evaluate_content(self, document_content_class):
-        start_time = time.time()
         self.logic = document_content_class.from_fields(self.get_field_labels_dict())
-        self.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
 
     def get_field_labels(self):
         return self.field_df['label'] if self.field_df is not None else None
@@ -185,7 +178,7 @@ class Document(ABC):
         case_log['case_id'] = case_id
         case_log['log_path'] = log_path
         case_log['predictions'] = self.get_prediction_dict()
-        case_log['timers'] = self.timer_dict
+        case_log['method_times'] = self._method_times
         if getattr(self.logic, 'get_case_log', None) is not None:
             case_log['content'] = self.logic.get_case_log()
         

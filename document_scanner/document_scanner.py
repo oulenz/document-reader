@@ -204,7 +204,7 @@ class Document_scanner(ABC):
         self.logger.info('Cropped fields and processed with models')
         document.evaluate_content(self.business_logic_class)
         self.logger.info('Evaluated content of document %s', img_path)
-        document.timer_dict[inspect.currentframe().f_code.co_name] = time.time() - start_time
+        document._method_times.append((inspect.currentframe().f_code.co_name, time.time() - start_time))
         return document
 
 
