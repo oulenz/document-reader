@@ -111,6 +111,7 @@ def pad_coords(coords, padding):
 
 def crop_section(image, coords):
     l, r, u, d = coords
+    l, u = max(0, l), max(0, u)
     return image[u:d, l:r]
 
 

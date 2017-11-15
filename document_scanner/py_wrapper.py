@@ -21,12 +21,20 @@ def compose(*functions):
     return inner
 
 
-def aggregate_keys(dictionary, aggregator=set, key_wrapper=identity, value_wrapper=identity):
-    return {value: aggregator(key_wrapper(key) for key, _ in group) for value, group in groupby(sorted(dictionary.items(), key=itemgetter(1)), key=compose(value_wrapper, itemgetter(1)))}
+def aggregate(st, aggregator=set, key_wrapper=identity, value_wrapper=identity):
+    return {k: aggregator(value_wrapper(v) for v in grp) for k, grp in groupby(sorted(st, key=key_wrapper), key=key_wrapper)}
 
 
-def aggregate_values(dictionary, aggregator=set, key_wrapper=identity, value_wrapper=identity):
-    return {key: aggregator(value_wrapper(value) for _, value in group) for key, group in groupby(sorted(dictionary.items()), key=compose(key_wrapper, itemgetter(0)))}
+def aggregate_keys(dct, aggregator=set, key_wrapper=identity, value_wrapper=identity):
+    return aggregate(dct.items(), aggregator, compose(value_wrapper, itemgetter(1)), compose(key_wrapper, itemgetter(0)))
+
+
+def aggregate_values(dct, aggregator=set, key_wrapper=identity, value_wrapper=identity):
+    return aggregate(dct.items(), aggregator, compose(key_wrapper, itemgetter(0)), compose(value_wrapper, itemgetter(1)))
+
+
+def rstrip(strng, suffix):
+    return strng[:-len(suffix)] if suffix and strng.endswith(suffix) else strng
 
 
 def get_class_from_module_path(path):
