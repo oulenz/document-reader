@@ -21,16 +21,16 @@ def check_fields(ground_truth, predictions, fields, positive_labels):
     return false_negatives, false_positives, incremental_confusion
 
 def compare_result_dicts(predicted_result, ground_truth_result):
-    result_missing = False
-    result_wrong = False
+    result_missing = {}
+    result_wrong = {}
     
     for key, ground_truth_value in ground_truth_result.items():
         if ground_truth_value and not predicted_result.get(key):
-            result_missing = True
+            result_missing[key] = ground_truth_value
     
     for key, predicted_value in predicted_result.items():
         if predicted_value and predicted_value != ground_truth_result.get(key):
-            result_wrong = True
+            result_wrong[key] = {'ground_truth': ground_truth_result.get(key), 'predicted': predicted_value}
     
     return result_missing, result_wrong
 
@@ -59,8 +59,8 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
     perfect_matches = []
     total_failure = []
 
-    documents_with_wrong_results = []
-    documents_with_missing_results = []
+    documents_with_wrong_results = {}
+    documents_with_missing_results = {}
     documents_with_correct_results = []
 
     false_positive_fields = dict()
@@ -114,10 +114,10 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
         result_missing, result_wrong = compare_result_dicts(content_predicted.results, content_ground_truth.results)
 
         if result_missing:
-            documents_with_missing_results.append(filename)
+            documents_with_missing_results[filename] = result_missing
             
         if result_wrong:
-            documents_with_wrong_results.append(filename)
+            documents_with_wrong_results[filename] = result_wrong
         
         if not result_missing and not result_wrong:
             documents_with_correct_results.append(filename)
@@ -141,10 +141,12 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
 
     response_list.append('---- Documents with wrong results ----')
     response_list.append(str(len(documents_with_wrong_results) / len(testset_predictions)) + ' ' + str(len(documents_with_wrong_results)))
-    response_list.append(str(sorted(documents_with_wrong_results)))
+    for document_name, results in documents_with_wrong_results.items():
+        response_list.append(document_name + ': ' + str(results))
     response_list.append('---- Documents with missing results ----')
     response_list.append(str(len(documents_with_missing_results) / len(testset_predictions)) + ' ' + str(len(documents_with_missing_results)))
-    response_list.append(str(sorted(documents_with_missing_results)))
+    for document_name, results in documents_with_missing_results.items():
+        response_list.append(document_name + ': ' + str(results))
 
     response_list.append('')
     response_list.append('---- Documents with correct results ----')
