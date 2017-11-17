@@ -6,8 +6,9 @@ def develop_document(image_path: str, path_dict_path: str, mock_document_type_na
     path_dict_path = path_dict_path or DEFAULT_PATH_DICT_PATH
     scanner = Document_scanner.complete(path_dict_path, mock_document_type_name=mock_document_type_name)
     document = scanner.develop_document(image_path, debug)
-    print(document.logic.get_response_text())
     print(document._method_times)
+    print(document.logic.results)
+    print(document.logic.get_response_text())
     return
 
 if __name__ == "__main__":

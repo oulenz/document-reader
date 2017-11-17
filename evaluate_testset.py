@@ -35,7 +35,7 @@ def compare_result_dicts(predicted_result, ground_truth_result):
     return result_missing, result_wrong
 
 
-def evaluate(predictions_path, ground_truth_path, path_dict_path):
+def evaluate(predictions_path, ground_truth_path, path_dict_path, store_documents):
     path_dict_path = path_dict_path or DEFAULT_PATH_DICT_PATH
     
     with open(predictions_path) as f:
@@ -160,6 +160,8 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path):
     with open(response_path, 'w') as f:
         f.write(response)
     
+    if not store_documents:
+        return
     predictions_name, _ = os.path.splitext(predictions_filename)
     eval_store_path = os.path.join(os.path.split(predictions_path)[0], 'evaluation_{}'.format(predictions_name))
     documents_path = predictions_folder
@@ -212,5 +214,6 @@ if __name__ == "__main__":
     parser.add_argument('predictions_path', help='The location of the json file with the predictions')
     parser.add_argument('ground_truth_path', help='The location of the json file with the ground truth')
     parser.add_argument('--path_dict_path', help='The location of the path dict')
+    parser.add_argument('--store_crops', dest='store_documents', action='store_true', help='Store documents with false predictions')
     args = parser.parse_args()
-    evaluate(args.predictions_path, args.ground_truth_path, args.path_dict_path)
+    evaluate(args.predictions_path, args.ground_truth_path, args.path_dict_path, args.store_documents)
