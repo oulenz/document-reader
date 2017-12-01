@@ -69,7 +69,7 @@ class Document(ABC):
         self.template_data = template
         resized = self.resize_to_template(self.photo_grey, template.photo.shape)
         self.image_data = Image_data.of_photo(resized, orb)
-        self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors)
+        self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors) if self.image_data.kp_descriptors is not None else None
         return
     
     @staticmethod
@@ -80,7 +80,7 @@ class Document(ABC):
         return cv_wrapper.resize(photo, length_to_use)
 
     def can_create_scan(self):
-        return len(self.matches) > MIN_MATCH_COUNT
+        return self.matches and len(self.matches) > MIN_MATCH_COUNT
 
     @store_time
     def find_transform_and_mask(self):

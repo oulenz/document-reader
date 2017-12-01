@@ -9,8 +9,8 @@ from document_scanner.py_wrapper import aggregate_keys
 
 
 def check_fields(ground_truth, predictions, fields, positive_labels):
-    actual_positivity = {k: ground_truth[k] in positive_labels for k in fields}
-    predicted_positivity = {k: predictions[k] in positive_labels for k in fields}
+    actual_positivity = {k: (ground_truth[k] if ground_truth else False) in positive_labels for k in fields}
+    predicted_positivity = {k: (predictions[k] if predictions else False) in positive_labels for k in fields}
 
     true_negatives = {k for k in fields if not actual_positivity[k] and not predicted_positivity[k]}
     false_negatives = {k for k in fields if actual_positivity[k] and not predicted_positivity[k]}
@@ -74,6 +74,9 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path, store_document
         perfect_fields[field_type] = set()
         confusion_matrices[field_type] = np.array([[0, 0], [0, 0]])
 
+    num_rule = 0
+    num_sign = 0
+    
     for filename, document_predictions in testset_predictions.items():
         document_ground_truth = testset_ground_truth[filename]
         document_predictions = testset_predictions[filename]
@@ -108,8 +111,8 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path, store_document
         if all_field_types_wrong:
             total_failure.append(filename)
 
-        content_ground_truth = scanner.business_logic_class.from_fields(document_ground_truth)
-        content_predicted = scanner.business_logic_class.from_fields(document_predictions)
+        content_ground_truth = scanner.business_logic_class.from_fields(document_ground_truth) if document_ground_truth else scanner.business_logic_class()
+        content_predicted = scanner.business_logic_class.from_fields(document_predictions) if document_predictions else scanner.business_logic_class()
 
         result_missing, result_wrong = compare_result_dicts(content_predicted.results, content_ground_truth.results)
 
@@ -121,8 +124,28 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path, store_document
         
         if not result_missing and not result_wrong:
             documents_with_correct_results.append(filename)
+        
+        if content_ground_truth.results.get('signed'):
+            num_sign += 1
+        if content_ground_truth.results.get('selected_rule_code'):
+            num_rule += 1
 
+    num_total = len(testset_ground_truth)
+    num_bad_scans = len([k for k, v in documents_with_missing_results.items() if 'good_scan' in v])
+    num_rule_true_positive = num_rule - len([k for k, v in documents_with_missing_results.items() if 'selected_rule_code' in v])
+    num_rule_wrong = len([k for k, v in documents_with_wrong_results.items() if 'selected_rule_code' in v and v['selected_rule_code']['ground_truth']])
+    num_rule_false_positive = len([k for k, v in documents_with_wrong_results.items() if 'selected_rule_code' in v])
+    num_sign_true_positive = num_sign - len([k for k, v in documents_with_missing_results.items() if 'signed' in v])
+    num_sign_false_positive = len([k for k, v in documents_with_wrong_results.items() if 'signed' in v])
+                      
+    
     response_list = []
+    response_list.append('I vårt testsett finnes det {} skjemaer, ved {} av dem klarer systemet ikke å lage en god scan'.format(num_total, num_bad_scans))
+    response_list.append('{} av skjemaene oppfyller en av de reglene vi undersøker, {} av dem blir klassifisert riktig, mens {} blir tildelt en feil regel'.format(num_rule, num_rule_true_positive, num_rule_wrong))
+    response_list.append('Av de {} skjemaene som ikke oppfyller en av reglene blir {} allikevel feilklassifisert.'.format(num_total - num_rule, num_rule_false_positive))
+    response_list.append('I testsettet er {} skjemaer felles signert, skademeldingsmodulen klarer å finne {} av dem.'.format(num_sign, num_sign_true_positive))
+    response_list.append('{} av de {} skjemaene som ikke er felles signert blir feilklassifisert som signert.'.format(num_sign_false_positive, num_total - num_sign))
+    response_list.append('')
     response_list.append('---- Confusion matrices ----')
     for field_type, confusion_matrix in confusion_matrices.items():
         response_list.append(field_type)
@@ -132,7 +155,7 @@ def evaluate(predictions_path, ground_truth_path, path_dict_path, store_document
 
     response_list.append('---- Percentages ----')
     for field_type, perfect_list in perfect_fields.items():
-        response_list.append('Forms with perfect fiels of type {}'.format(field_type))
+        response_list.append('Forms with perfect fields of type {}'.format(field_type))
         response_list.append(str(len(perfect_list) / len(testset_predictions)))
     response_list.append('Forms with all field types perfect')
     response_list.append(str(len(perfect_matches) / len(testset_predictions)))

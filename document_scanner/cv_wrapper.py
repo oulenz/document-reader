@@ -35,7 +35,7 @@ def get_keypoints_and_descriptors(img, orb, n=3):
             if des is not None:
                 descriptors.append(des)
 
-    return keypoints, np.concatenate(descriptors)
+    return keypoints, np.concatenate(descriptors) if descriptors else None
 
 
 def get_orb(n=3):
