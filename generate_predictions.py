@@ -16,7 +16,7 @@ def generate_predictions(testset_path, document_type_name, predictions_name, pat
     predictions['testset'] = dict()
 
     for img_name in list_images(testset_path):
-            print('Developing {}'.format(img_name)) 
+            print('Developing {}'.format(img_name))
             document = scanner.develop_document(os.path.join(testset_path, img_name))
             predictions['testset'][img_name] = document.get_field_labels_dict()
 

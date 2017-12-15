@@ -101,7 +101,11 @@ def find_transformation_and_mask(kp_template, kp_photo, matches):
 def reverse_transformation(photo, transform, original_shape):
     # inverse the transformation to retrieve the original
     h, w = original_shape[:2]
-    return cv2.warpPerspective(photo, np.linalg.inv(transform), (w, h))
+    try:
+        inverse = np.linalg.inv(transform)
+    except np.linalg.linalg.LinAlgError as err:
+        return None
+    return cv2.warpPerspective(photo, inverse, (w, h))
 
 
 def pad_coords(coords, padding):

@@ -5,7 +5,7 @@ import os
 
 from abc import ABC
 
-import document_scanner.cv_wrapper as cv_wrapper
+from document_scanner.cv_wrapper import crop_sections, display, find_transformation_and_mask, get_keypoints_and_descriptors, get_matching_points, resize, reverse_transformation, sharpen_image
 import document_scanner.tfw_wrapper as tfw_wrapper
 from document_scanner.py_wrapper import store_time
 
@@ -23,7 +23,7 @@ class Image_data(ABC):
     def of_photo(cls, photo, orb):
         image_data = cls()
         image_data.photo = photo
-        image_data.keypoints, image_data.kp_descriptors = cv_wrapper.get_keypoints_and_descriptors(photo, orb)
+        image_data.keypoints, image_data.kp_descriptors = get_keypoints_and_descriptors(photo, orb)
         return image_data
 
 
@@ -59,17 +59,13 @@ class Document(ABC):
         self.document_type_name = mock_document_type_name or tfw_wrapper.label_img(self.photo_grey, *model_and_labels, pretrained_client)
         return
 
-    # canny edge method, not currently used
-    def find_edges(self):
-        self.edged = cv_wrapper.find_edges(self.photo_grey)
-        return
-
     @store_time
     def find_match(self, template, orb):
         self.template_data = template
-        resized = self.resize_to_template(self.photo_grey, template.photo.shape)
-        self.image_data = Image_data.of_photo(resized, orb)
-        self.matches = cv_wrapper.get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors) if self.image_data.kp_descriptors is not None else None
+        photo_grey_to_use = cv2.cvtColor(sharpen_image(self.photo), cv2.COLOR_RGB2GRAY)
+        resized_to_use = self.resize_to_template(photo_grey_to_use, template.photo.shape)
+        self.image_data = Image_data.of_photo(resized_to_use, orb)
+        self.matches = get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors) if self.image_data.kp_descriptors is not None else None
         return
     
     @staticmethod
@@ -77,19 +73,21 @@ class Document(ABC):
         multiplication_factor = 1.2
         h, w = template_shape[:2]
         length_to_use = int(max(h, w) * multiplication_factor)
-        return cv_wrapper.resize(photo, length_to_use)
+        return resize(photo, length_to_use)
 
     def can_create_scan(self):
         return self.matches and len(self.matches) > MIN_MATCH_COUNT
 
     @store_time
     def find_transform_and_mask(self):
-        self.transform, self.mask = cv_wrapper.find_transformation_and_mask(self.template_data.keypoints, self.image_data.keypoints, self.matches)
+        self.transform, self.mask = find_transformation_and_mask(self.template_data.keypoints, self.image_data.keypoints, self.matches)
         return
 
     @store_time
     def create_scan(self):
-        self.scan = cv_wrapper.reverse_transformation(self.image_data.photo, self.transform, self.template_data.photo.shape)
+        template_shape = self.template_data.photo.shape
+        resized = self.resize_to_template(self.photo_grey, template_shape)
+        self.scan = reverse_transformation(resized, self.transform, template_shape)
         return
 
     @store_time
@@ -101,7 +99,7 @@ class Document(ABC):
 
     @store_time
     def read_fields(self, field_data_df, model_df):
-        crop_df = cv_wrapper.crop_sections(self.scan, field_data_df)
+        crop_df = crop_sections(self.scan, field_data_df)
         self.field_df = tfw_wrapper.label_image_df(crop_df, model_df)
         return
 
@@ -141,12 +139,12 @@ class Document(ABC):
 
         photo_with_match = cv2.drawMatches(self.template_data.photo, self.template_data.keypoints, photo_with_match, self.image_data.keypoints, self.matches, None, **draw_params)
 
-        cv_wrapper.display(photo_with_match)
+        display(photo_with_match)
         return
 
     def show_scan(self):
         # show the original and scanned images
-        cv_wrapper.display(cv_wrapper.resize(self.photo, 650), cv_wrapper.resize(self.scan, 650))
+        display(resize(self.photo, 650), resize(self.scan, 650))
 
     def show_boxes(self, field_data_df):
         import random
