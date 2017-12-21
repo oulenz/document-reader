@@ -1,7 +1,6 @@
 import cv2
 import inspect
 import json
-import logging.config
 import os
 import pandas as pd
 import tensorflow as tf
@@ -25,7 +24,6 @@ class Document_scanner(ABC):
         self.document_type_model_and_labels = None
         self.field_data_df = None
         self.inceptionv4_client = None
-        self.logger = None
         self.mock_document_type_name = None
         self.model_df = None
         self.orb = None
@@ -52,10 +50,8 @@ class Document_scanner(ABC):
         return scanner
     
     @classmethod
-    def complete(cls, path_dict_path: str, inceptionv4_client=None, log_level='INFO', mock_document_type_name=None):
+    def complete(cls, path_dict_path: str, inceptionv4_client=None, mock_document_type_name=None):
         scanner = cls()
-        logging.config.dictConfig(cls.get_logging_config_dict(log_level))
-        scanner.logger = logging.getLogger(__name__)
         scanner.path_dict = cls.parse_path_dict(path_dict_path)
         scanner.orb = get_orb()
         scanner.inceptionv4_client = inceptionv4_client
@@ -66,39 +62,6 @@ class Document_scanner(ABC):
         scanner.template_df = scanner.parse_document_type_data(scanner.path_dict['document_type_data_path'], scanner.path_dict['data_dir_path'])
         scanner.business_logic_class = get_class_from_module_path(scanner.path_dict['business_logic_class_path'])
         return scanner
-
-    @staticmethod
-    def get_logging_config_dict(log_level):
-        return {
-            'version': 1,
-            'disable_existing_loggers': False,
-            'formatters': {
-                'standard': {
-                    'format': '%(asctime)s %(levelname)s %(name)s %(message)s'
-                },
-            },
-            'handlers': {
-                'default': {
-                    'level': log_level,
-                    'class': 'logging.StreamHandler',
-                    'formatter': 'standard'
-                },
-                'file': {
-                    'class': 'logging.handlers.RotatingFileHandler',
-                    'formatter': 'standard',
-                    'filename': 'apilog.log',
-                    'maxBytes': 5000 * 1024,
-                    'backupCount': 3
-                }
-            },
-            'loggers': {
-                '': {
-                    'handlers': ['default', 'file'],
-                    'level': log_level,
-                    'propagate': True
-                }
-            }
-        }
 
     @staticmethod
     def parse_path_dict(path: str):
@@ -173,14 +136,11 @@ class Document_scanner(ABC):
 
     def develop_document(self, img_path: str, debug: bool = False):
         start_time = time.time()
-        self.logger.info('Start developing document %s', img_path)
         document = Document.from_path(img_path, self.business_logic_class)
         document.predict_document_type(self.document_type_model_and_labels, self.inceptionv4_client, self.mock_document_type_name)
         if document.document_type_name not in self.template_df.index:
             document.error_reason = 'document_type'
-            self.logger.info('Predicted document type as %s, which cannot be handled; aborting', document.document_type_name)
             return document
-        self.logger.debug('Predicted document type as %s', document.document_type_name)
         document.find_match(self.template_df.loc[document.document_type_name, 'template'], self.orb)
         if debug:
             document.print_template_match_quality()
@@ -188,18 +148,14 @@ class Document_scanner(ABC):
             if debug:
                 document.show_match_with_template()
             document.error_reason = 'image_quality'
-            self.logger.info('Identified insufficient points for template matching; aborting')
             return document
-        self.logger.debug('Identified points for template matching')
         document.find_transform_and_mask()
         document.create_scan()
         if document.scan is None:
             if debug:
                 document.show_match_with_template()
             document.error_reason = 'image_quality'
-            self.logger.info('Identified insufficient points for template matching; aborting')
             return document
-        self.logger.debug('Created scan from original photo')
         if debug:
             document.show_match_with_template()
             document.show_scan()
@@ -207,9 +163,7 @@ class Document_scanner(ABC):
         document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
         if debug:
             print(document.get_field_labels_json())
-        self.logger.info('Cropped fields and processed with models')
         document.evaluate_content(self.business_logic_class)
-        self.logger.info('Evaluated content of document %s', img_path)
         document._method_times.append((inspect.currentframe().f_code.co_name, time.time() - start_time))
         return document
 

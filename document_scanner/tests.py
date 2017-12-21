@@ -35,7 +35,7 @@ def test_initialisation():
 
 
 def test_develop_document():
-    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH, log_level='DEBUG')
+    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH)
     for document_type_name in scanner.template_df.index:
         document = scanner.develop_document(scanner.template_df.loc[document_type_name, 'image_path'])
         assert document.document_type_name == document_type_name
@@ -43,21 +43,21 @@ def test_develop_document():
 
 def test_pretrained_client():
     incv4_client = MockPredictClient('localhost:9001', 'incv4', 1, num_scores=1536)
-    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH, inceptionv4_client=incv4_client, log_level='DEBUG')
+    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH, inceptionv4_client=incv4_client)
     for document_type_name in scanner.template_df.index:
         document = scanner.develop_document(scanner.template_df.loc[document_type_name, 'image_path'])
 
 
 def test_mock_document_type_name():
     incv4_client = MockPredictClient('localhost:9001', 'incv4', 1, num_scores=1536)
-    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH, inceptionv4_client=incv4_client, log_level='DEBUG', mock_document_type_name='standard')
+    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH, inceptionv4_client=incv4_client, mock_document_type_name='standard')
     for document_type_name in scanner.template_df.index:
         document = scanner.develop_document(scanner.template_df.loc[document_type_name, 'image_path'])
         assert document.document_type_name == document_type_name
 
         
 def test_save_images_and_case_log():
-    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH, log_level='DEBUG')
+    scanner = Document_scanner.complete(DEFAULT_PATH_DICT_PATH)
     temp_dir = os.path.join(scanner.path_dict['data_dir_path'], 'temp')
     if not os.path.isdir(temp_dir):
         for document_type_name in scanner.template_df.index:
