@@ -208,3 +208,12 @@ class Document(ABC):
         prediction_dict['document_error'] = getattr(self, 'error_reason')
         return prediction_dict
     
+    def show_debug_information(self, field_data_df):
+        self.print_template_match_quality()
+        self.show_match_with_template()
+        if self.scan is not None:
+            return
+        self.show_scan()
+        self.show_boxes(field_data_df)
+        print(self.get_field_labels_json())
+    

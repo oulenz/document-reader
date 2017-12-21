@@ -142,29 +142,19 @@ class Document_scanner(ABC):
             document.error_reason = 'document_type'
             return document
         document.find_match(self.template_df.loc[document.document_type_name, 'template'], self.orb)
-        if debug:
-            document.print_template_match_quality()
         if not document.can_create_scan():
-            if debug:
-                document.show_match_with_template()
             document.error_reason = 'image_quality'
             return document
         document.find_transform_and_mask()
         document.create_scan()
         if document.scan is None:
-            if debug:
-                document.show_match_with_template()
             document.error_reason = 'image_quality'
             return document
-        if debug:
-            document.show_match_with_template()
-            document.show_scan()
-            document.show_boxes(self.field_data_df)
         document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
-        if debug:
-            print(document.get_field_labels_json())
         document.evaluate_content(self.business_logic_class)
         document._method_times.append((inspect.currentframe().f_code.co_name, time.time() - start_time))
+        if debug:
+            document.show_debug_information(self.field_data_df)
         return document
 
 
