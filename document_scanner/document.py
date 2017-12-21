@@ -5,7 +5,7 @@ import os
 
 from abc import ABC
 
-from document_scanner.cv_wrapper import crop_sections, display, find_transformation_and_mask, get_keypoints_and_descriptors, get_matching_points, resize, reverse_transformation
+from document_scanner.cv_wrapper import crop_sections, display, find_transformation_and_mask, get_keypoints_and_descriptors, get_matching_points, resize, reverse_transformation, sharpen_img
 import document_scanner.tfw_wrapper as tfw_wrapper
 from document_scanner.py_wrapper import store_time
 
@@ -41,6 +41,7 @@ class Document(ABC):
         self.matches = None
         self.photo = None
         self.photo_grey = None
+        self.photo_grey_sharp = None
         self.scan = None
         self.template_data = None
         self.transform = None
@@ -51,6 +52,7 @@ class Document(ABC):
         document.img_path = img_path
         document.photo = cv2.imread(img_path, 1)
         document.photo_grey = cv2.imread(img_path, 0)
+        document.photo_grey_sharp = sharpen_img(document.photo_grey)
         document.logic = business_logic_class()
         return document
 
@@ -62,8 +64,7 @@ class Document(ABC):
     @store_time
     def find_match(self, template, orb):
         self.template_data = template
-        photo_grey_to_use = cv2.cvtColor(self.photo, cv2.COLOR_RGB2GRAY)
-        resized_to_use = self.resize_to_template(photo_grey_to_use, template.photo.shape)
+        resized_to_use = self.resize_to_template(self.photo_grey_sharp, template.photo.shape)
         self.image_data = Image_data.of_photo(resized_to_use, orb)
         self.matches = get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors) if self.image_data.kp_descriptors is not None else None
         return
@@ -181,7 +182,7 @@ class Document(ABC):
             case_log['content'] = self.logic.get_case_log()
         
         case_log['image_paths'] = {}
-        image_name_list = ['photo', 'photo_grey', 'scan']
+        image_name_list = ['photo', 'photo_grey', 'photo_grey_sharp', 'scan']
         for image_name in image_name_list:
             image = getattr(self, image_name, None)
             if image is not None:

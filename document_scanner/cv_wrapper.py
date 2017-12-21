@@ -122,3 +122,10 @@ def crop_section(image, coords):
 def crop_sections(image, df_with_coords):
     df_with_coords['crop'] = df_with_coords['coords'].apply(lambda x: crop_section(image, x))
     return df_with_coords
+
+def sharpen_img(img):
+    # subtract effect of low-pass filter (convolution with 5x5 Gaussian kernel)
+    img = img + (img - cv2.GaussianBlur(img, (5, 5), 0))
+    # high-pass filter (convolution with 3x3 kernel that approximates Laplacean)
+    img = cv2.filter2D(img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
+    return img
