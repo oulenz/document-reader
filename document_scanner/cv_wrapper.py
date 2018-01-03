@@ -129,3 +129,10 @@ def sharpen_img(img):
     # high-pass filter (convolution with 3x3 kernel that approximates Laplacean)
     img = cv2.filter2D(img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
     return img
+
+def get_sharpened_lst(img):
+    # subtract effect of low-pass filter (convolution with 5x5 Gaussian kernel)
+    low_pass = img + (img - cv2.GaussianBlur(img, (5, 5), 0))
+    # high-pass filter (convolution with 3x3 kernel that approximates Laplacean)
+    high_pass = cv2.filter2D(low_pass, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
+    return img, high_pass, low_pass # ordered according to descending incremental usefulness in terms of creating good scans

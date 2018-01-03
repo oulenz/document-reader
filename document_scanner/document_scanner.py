@@ -141,17 +141,28 @@ class Document_scanner(ABC):
         if document.document_type_name not in self.template_df.index:
             document.error_reason = 'document_type'
             return document
-        document.find_match(self.template_df.loc[document.document_type_name, 'template'], self.orb)
-        if not document.can_create_scan():
-            document.error_reason = 'image_quality'
-            return document
-        document.find_transform_and_mask()
-        document.create_scan()
+        template_data = self.template_df.loc[document.document_type_name, 'template']
+        document.template_data = template_data
+        for i, img in enumerate(document.get_match_candidates(template_data)):
+            print('test')
+            document.find_match(img, template_data, self.orb)
+            if not document.can_create_scan():
+                continue
+            document.find_transform_and_mask()
+            document.create_scan()
+            if document.scan is None:
+                continue
+            document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
+            document.evaluate_content(self.business_logic_class)
+            if hasattr(document.logic, 'is_good_scan') and not getattr(document.logic, 'is_good_scan')():
+                print(getattr(document.logic, 'is_good_scan')())
+                continue
+            print(getattr(document.logic, 'is_good_scan')())
+            document.scan_retries = i
+            break
         if document.scan is None:
             document.error_reason = 'image_quality'
             return document
-        document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
-        document.evaluate_content(self.business_logic_class)
         document._method_times.append((inspect.currentframe().f_code.co_name, time.time() - start_time))
         if debug:
             document.show_debug_information(self.field_data_df)

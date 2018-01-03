@@ -5,7 +5,7 @@ import os
 
 from abc import ABC
 
-from document_scanner.cv_wrapper import crop_sections, display, find_transformation_and_mask, get_keypoints_and_descriptors, get_matching_points, resize, reverse_transformation, sharpen_img
+from document_scanner.cv_wrapper import crop_sections, display, find_transformation_and_mask, get_keypoints_and_descriptors, get_matching_points, get_sharpened_lst, resize, reverse_transformation, sharpen_img
 import document_scanner.tfw_wrapper as tfw_wrapper
 from document_scanner.py_wrapper import store_time
 
@@ -62,10 +62,12 @@ class Document(ABC):
         return
 
     @store_time
-    def find_match(self, template, orb):
-        self.template_data = template
-        resized_to_use = self.resize_to_template(self.photo_grey_sharp, template.photo.shape)
-        self.image_data = Image_data.of_photo(resized_to_use, orb)
+    def get_match_candidates(self, template):
+        return map(lambda x: self.resize_to_template(x, template.photo.shape), get_sharpened_lst(self.photo_grey))
+
+    @store_time
+    def find_match(self, img, template, orb):
+        self.image_data = Image_data.of_photo(img, orb)
         self.matches = get_matching_points(template.kp_descriptors, self.image_data.kp_descriptors) if self.image_data.kp_descriptors is not None else None
         return
     
