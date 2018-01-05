@@ -144,7 +144,6 @@ class Document_scanner(ABC):
         template_data = self.template_df.loc[document.document_type_name, 'template']
         document.template_data = template_data
         for i, img in enumerate(document.get_match_candidates(template_data)):
-            print('test')
             document.find_match(img, template_data, self.orb)
             if not document.can_create_scan():
                 continue
@@ -155,9 +154,7 @@ class Document_scanner(ABC):
             document.read_fields(self.field_data_df.xs(document.document_type_name), self.model_df.xs(document.document_type_name))
             document.evaluate_content(self.business_logic_class)
             if hasattr(document.logic, 'is_good_scan') and not getattr(document.logic, 'is_good_scan')():
-                print(getattr(document.logic, 'is_good_scan')())
                 continue
-            print(getattr(document.logic, 'is_good_scan')())
             document.scan_retries = i
             break
         if document.scan is None:

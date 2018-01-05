@@ -43,6 +43,7 @@ class Document(ABC):
         self.photo_grey = None
         self.photo_grey_sharp = None
         self.scan = None
+        self.scan_retries = None
         self.template_data = None
         self.transform = None
         
