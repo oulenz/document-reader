@@ -54,6 +54,14 @@ def get_flann_index_params():
                               multi_probe_level=1)  # 1-2
 
 
+def reshape(img, shape):
+    h, w, c = shape
+    if len(img.shape) == 2 and c == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    img = cv2.resize(img, (w, h))
+    return img
+
+
 def resize(img, length):
     if not length:
         return img

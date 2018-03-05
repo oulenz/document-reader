@@ -6,8 +6,8 @@ import os
 from abc import ABC
 
 from document_scanner.cv_wrapper import crop_sections, display, find_transformation_and_mask, get_keypoints_and_descriptors, get_matching_points, get_sharpened_lst, resize, reverse_transformation, sharpen_img
-import document_scanner.tfw_wrapper as tfw_wrapper
 from document_scanner.py_wrapper import store_time
+from document_scanner.tfs_wrapper import get_labeled_img_df
 
 MIN_MATCH_COUNT = 10
 
@@ -58,8 +58,11 @@ class Document(ABC):
         return document
 
     @store_time
-    def predict_document_type(self, model_and_labels, pretrained_client=None, mock_document_type_name=None):
-        self.document_type_name = mock_document_type_name or tfw_wrapper.label_img(self.photo_grey, *model_and_labels, pretrained_client)
+    def predict_document_type(self, document_type_classifier):
+        if type(document_type_classifier) == str:
+            self.document_type_name = document_type_classifier
+        else:
+            self.document_type_name = document_type_classifier.img_to_label(self.photo_grey)
         return
 
     @store_time
@@ -102,9 +105,9 @@ class Document(ABC):
         return corners
 
     @store_time
-    def read_fields(self, field_data_df, model_df):
+    def read_fields(self, field_data_df, model_dct):
         crop_df = crop_sections(self.scan, field_data_df)
-        self.field_df = tfw_wrapper.label_image_df(crop_df, model_df)
+        self.field_df = get_labeled_img_df(crop_df, model_dct)
         return
 
     @store_time
