@@ -4,7 +4,6 @@ from abc import ABC
 from typing import Dict, List
 
 from experiment_logger.loggable import Loggable
-from predict_client.inmemory_client import InMemoryClient
 
 from document_reader.cv_wrapper import reshape
 
@@ -27,6 +26,7 @@ class ImageClassifier(Loggable):
 
         if 'model_client' not in kwargs:
             if 'model_path' in kwargs:
+                from predict_client.inmemory_client import InMemoryClient
                 kwargs['model_client'] = InMemoryClient(kwargs['model_path'])
                 del kwargs['model_path']
             else:
