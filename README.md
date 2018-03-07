@@ -1,1 +1,1 @@
-# document_scanner
+# document_reader

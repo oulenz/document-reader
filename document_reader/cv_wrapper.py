@@ -116,20 +116,21 @@ def reverse_transformation(photo, transform, original_shape):
     return cv2.warpPerspective(photo, inverse, (w, h))
 
 
-def pad_coords(coords, padding):
-    l, r, u, d = coords
-    return (l - padding, r + padding, u - padding, d + padding)
+def pad_lrud(lrud, padding):
+    l, r, u, d = lrud
+    return l - padding, r + padding, u - padding, d + padding
 
 
-def crop_section(image, coords):
-    l, r, u, d = coords
+def crop_section(image, lrud):
+    l, r, u, d = lrud
     l, u = max(0, l), max(0, u)
     return image[u:d, l:r]
 
 
-def crop_sections(image, df_with_coords):
-    df_with_coords['crop'] = df_with_coords['coords'].apply(lambda x: crop_section(image, x))
-    return df_with_coords
+def crop_sections(image, df_with_lrud):
+    df_with_crops = df_with_lrud.copy()
+    df_with_crops['crop'] = df_with_crops['lrud'].apply(lambda x: crop_section(image, x))
+    return df_with_crops
 
 def sharpen_img(img):
     # subtract effect of low-pass filter (convolution with 5x5 Gaussian kernel)

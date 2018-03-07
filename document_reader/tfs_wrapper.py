@@ -6,7 +6,7 @@ from typing import Dict, List
 from experiment_logger.loggable import Loggable
 from predict_client.inmemory_client import InMemoryClient
 
-from document_scanner.cv_wrapper import reshape
+from document_reader.cv_wrapper import reshape
 
 
 class ImageClassifier(Loggable):
