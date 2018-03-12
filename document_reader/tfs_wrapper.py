@@ -69,7 +69,7 @@ class ImageReader(Loggable):
     def _response_to_y(self, resp):
         for tensor_name in self.out_tensor_names:
             if tensor_name not in resp:
-                return tuple([], [], [])
+                return tuple([[], [], []])
 
         return tuple([resp[tensor_name] for tensor_name in self.out_tensor_names])
 
