@@ -61,7 +61,7 @@ class Document(ABC):
         if type(document_type_name_or_classifier) == str:
             self.document_type_name = document_type_name_or_classifier
         else:
-            self.document_type_name = document_type_name_or_classifier.img_to_label(self.photo_grey)
+            self.document_type_name = document_type_name_or_classifier.img_to_prediction(self.photo_grey)
         return
 
     @store_time

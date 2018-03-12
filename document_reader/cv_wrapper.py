@@ -58,7 +58,10 @@ def reshape(img, shape):
     h, w, c = shape
     if len(img.shape) == 2 and c == 3:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-    img = cv2.resize(img, (w, h))
+    if h or w:
+        h = h or img.shape[0]
+        w = w or img.shape[1]
+        img = cv2.resize(img, (w, h))
     return img
 
 
