@@ -67,7 +67,7 @@ class ImageReader(Loggable):
         return [{'in_tensor_name': self.in_tensor_name, 'in_tensor_dtype': self.in_dtype, 'data': x}]
 
     def _response_to_y(self, resp):
-        return tuple([resp[tensor_name] for tensor_name in self.out_tensor_names])
+        return tuple([resp[tensor_name] for tensor_name in self.out_tensor_names if tensor_name in resp])
 
     def y_to_predictions(self, y):
         return [self.y_to_prediction(*y_i) for y_i in zip(*y)]
