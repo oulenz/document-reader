@@ -59,7 +59,8 @@ class ImageReader(Loggable):
 
     def x_to_y(self, x):
         req = self._x_to_request(x)
-        resp = self.model_client.predict(req, request_timeout=timeout)
+        # TODO: add escalating retries, set base value per class or object
+        resp = self.model_client.predict(req, request_timeout=60)
         return self._response_to_y(resp)
 
     def _x_to_request(self, x):
