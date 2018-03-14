@@ -6,12 +6,14 @@ import pandas as pd
 import time
 
 from abc import ABC
-from typing import Dict, Union
+from typing import Dict, Set, Union
 
 from experiment_logger.loggable import ObjectDict
 
 from document_reader.cv_wrapper import get_orb
 from document_reader.document import Document, Image_data
+from document_reader.os_wrapper import list_subfolders
+from document_reader.py_wrapper import startswith
 from document_reader.tfs_wrapper import ImageClassifier
 
 # TODO: re-add argument types Dict[str, ProdClient] and Union[str, ProdClient] once we've figured out how to import
@@ -28,13 +30,13 @@ class DocumentReader(ABC):
         self.template_df = None
     
     @classmethod
-    def from_dicts(cls, document_type_model_path: str, template_path_dct: Dict[str, str], field_model_path_dct: Dict[str, str], field_data_df: pd.DataFrame, document_type_name_or_client=None, field_client_dct: Dict = None):
+    def from_dicts(cls, document_type_model_path: str, template_path_dct: Dict[str, str], model_dir: str, field_types: Set[str], field_data_df: pd.DataFrame, document_type_name_or_client=None, field_client_dct: Dict = None):
         scanner = cls()
         scanner.orb = get_orb()
         scanner.template_df = scanner.parse_document_type_data(template_path_dct)
         scanner.document_type_name_or_classifier = cls.get_document_type_classifier(document_type_model_path, document_type_name_or_client)
         scanner.field_data_df = cls.parse_field_data(field_data_df)
-        scanner.field_classifier_dct = cls.get_field_classifier_dct(field_model_path_dct, field_client_dct)
+        scanner.field_classifier_dct = cls.get_field_classifier_dct(model_dir, field_types, field_client_dct)
         return scanner
 
     @staticmethod
@@ -54,16 +56,17 @@ class DocumentReader(ABC):
         return objdct.to_object(model_path=document_type_model_path)
 
     @staticmethod
-    def get_field_classifier_dct(model_path_dct: Dict[str, str], field_client_dct: Dict):
+    def get_field_classifier_dct(model_directory: str, field_types: Set[str], field_client_dct: Dict):
         classifier_dct = {}
 
-        for name, model_path in model_path_dct.items():
-            with open(model_path + '.json', 'r') as f:
+        for name in field_types:
+            with open(os.path.join(model_directory, name + '.json'), 'r') as f:
                 objdct = ObjectDict(json.load(f))
             if field_client_dct:
                 classifier = objdct.to_object(model_client=field_client_dct[name])
             else:
-                classifier = objdct.to_object(model_path=model_path)
+                dirname = max([dirname for dirname in list_subfolders(model_directory) if startswith(dirname.split('_'), name.split('_'))])
+                classifier = objdct.to_object(model_path=os.path.join(model_directory, dirname))
             classifier_dct[name] = classifier
 
         return classifier_dct
