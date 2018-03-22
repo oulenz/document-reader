@@ -95,8 +95,6 @@ def get_labeled_img_df(img_df, model_dct):
 
     for model_name, fields_of_model_df in img_df.groupby(['model_name']):
         model = model_dct[model_name]
-        #input_shape, model, label_dict = model_df.loc[model_name, ['input_shape', 'model', 'label_dict']]
-        #labels = imgs_to_labels(fields_of_model_df['crop'].values, input_shape, model, label_dict)
         labels = model.imgs_to_predictions(fields_of_model_df['crop'].values)
         new_content = pd.DataFrame(fields_of_model_df['crop'].copy())
         new_content['label'] = labels

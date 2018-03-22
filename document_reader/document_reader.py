@@ -30,17 +30,18 @@ class DocumentReader(ABC):
         self.template_df = None
     
     @classmethod
-    def from_dicts(cls, document_type_model_path: str, template_path_dct: Dict[str, str], model_dir: str, field_types: Set[str], field_data_df: pd.DataFrame, document_type_name_or_client=None, field_client_dct: Dict = None):
+    def from_dicts(cls, document_type_model_path: str, template_path_dct: Dict[str, str], model_dir: str, field_model_selection: Set[str], field_data_df: pd.DataFrame, document_type_name_or_client=None, field_client_dct: Dict = None):
         scanner = cls()
         scanner.orb = get_orb()
         scanner.template_df = scanner.parse_document_type_data(template_path_dct)
         scanner.document_type_name_or_classifier = cls.get_document_type_classifier(document_type_model_path, document_type_name_or_client)
-        scanner.field_data_df = cls.parse_field_data(field_data_df)
-        scanner.field_classifier_dct = cls.get_field_classifier_dct(model_dir, field_types, field_client_dct)
+        scanner.field_data_df = cls.parse_field_data(field_data_df, field_model_selection)
+        scanner.field_classifier_dct = cls.get_field_classifier_dct(model_dir, field_model_selection, field_client_dct)
         return scanner
 
     @staticmethod
-    def parse_field_data(field_data_df: pd.DataFrame):
+    def parse_field_data(field_data_df: pd.DataFrame, field_types: Set[str]):
+        field_data_df = field_data_df[field_data_df['model_name'].isin(field_types)]
         field_data_df['lrud'] = field_data_df['lrud'].apply(lambda x: tuple([int(y) for y in x.split(':')]))  # (l, r, u, d)
         field_data_df = field_data_df.set_index(['document_type_name', 'field_name'])
         return field_data_df
