@@ -54,6 +54,17 @@ def get_flann_index_params():
                               multi_probe_level=1)  # 1-2
 
 
+def reshape(img, shape):
+    h, w, c = shape
+    if len(img.shape) == 2 and c == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    if h or w:
+        h = h or img.shape[0]
+        w = w or img.shape[1]
+        img = cv2.resize(img, (w, h))
+    return img
+
+
 def resize(img, length):
     if not length:
         return img
@@ -108,20 +119,21 @@ def reverse_transformation(photo, transform, original_shape):
     return cv2.warpPerspective(photo, inverse, (w, h))
 
 
-def pad_coords(coords, padding):
-    l, r, u, d = coords
-    return (l - padding, r + padding, u - padding, d + padding)
+def pad_lrud(lrud, padding):
+    l, r, u, d = lrud
+    return l - padding, r + padding, u - padding, d + padding
 
 
-def crop_section(image, coords):
-    l, r, u, d = coords
+def crop_section(image, lrud):
+    l, r, u, d = lrud
     l, u = max(0, l), max(0, u)
     return image[u:d, l:r]
 
 
-def crop_sections(image, df_with_coords):
-    df_with_coords['crop'] = df_with_coords['coords'].apply(lambda x: crop_section(image, x))
-    return df_with_coords
+def crop_sections(image, df_with_lrud):
+    df_with_crops = df_with_lrud.copy()
+    df_with_crops['crop'] = df_with_crops['lrud'].apply(lambda x: crop_section(image, x))
+    return df_with_crops
 
 def sharpen_img(img):
     # subtract effect of low-pass filter (convolution with 5x5 Gaussian kernel)

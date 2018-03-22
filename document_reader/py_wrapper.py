@@ -33,8 +33,20 @@ def aggregate_values(dct, aggregator=set, key_wrapper=identity, value_wrapper=id
     return aggregate(dct.items(), aggregator, compose(key_wrapper, itemgetter(0)), compose(value_wrapper, itemgetter(1)))
 
 
+def lstrip(strng, prefix):
+    return strng[len(prefix):] if prefix and strng.startswith(prefix) else strng
+
+
 def rstrip(strng, suffix):
     return strng[:-len(suffix)] if suffix and strng.endswith(suffix) else strng
+
+
+def startswith(lst, prefix):
+    return lst[:len(prefix)] == prefix
+
+
+def endswith(lst, suffix):
+    return not suffix or lst[-len(suffix):] == suffix
 
 
 def get_class_from_module_path(path):
