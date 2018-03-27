@@ -99,7 +99,7 @@ def get_distance(x, y):
     return math.hypot(x[0] - y[0], x[1] - y[1])
 
 
-def find_transformation_and_mask(kp_template, kp_photo, matches):
+def find_transform_and_mask(kp_template, kp_photo, matches):
 
     src_pts = np.float32([kp_template[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp_photo[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
@@ -135,16 +135,16 @@ def crop_sections(image, df_with_lrud):
     df_with_crops['crop'] = df_with_crops['lrud'].apply(lambda x: crop_section(image, x))
     return df_with_crops
 
-def sharpen_img(img):
-    # subtract effect of low-pass filter (convolution with 5x5 Gaussian kernel)
-    img = img + (img - cv2.GaussianBlur(img, (5, 5), 0))
-    # high-pass filter (convolution with 3x3 kernel that approximates Laplacean)
-    img = cv2.filter2D(img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
-    return img
 
-def get_sharpened_lst(img):
+def low_pass_filter(img):
     # subtract effect of low-pass filter (convolution with 5x5 Gaussian kernel)
-    low_pass = img + (img - cv2.GaussianBlur(img, (5, 5), 0))
+    return img + (img - cv2.GaussianBlur(img, (5, 5), 0))
+
+
+def high_pass_filter(img):
     # high-pass filter (convolution with 3x3 kernel that approximates Laplacean)
-    high_pass = cv2.filter2D(low_pass, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
-    return img, high_pass, low_pass # ordered according to descending incremental usefulness in terms of creating good scans
+    return cv2.filter2D(img, -1, np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]))
+
+
+def low_and_high_pass_filter(img):
+    return high_pass_filter(low_pass_filter(img))

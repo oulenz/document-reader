@@ -49,6 +49,13 @@ def endswith(lst, suffix):
     return not suffix or lst[-len(suffix):] == suffix
 
 
+def coalesce(*arg):
+    for x in arg:
+        if x is not None:
+            return x
+    return None
+
+
 def get_class_from_module_path(path):
 
     folder_path, filename = os.path.split(path)

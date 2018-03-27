@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='document-reader',
-    version='0.7.0',
+    version='0.8.0',
     description='Extract content from a document',
     url='https://github.com/epigramai/document_reader',
     author='Oliver',
