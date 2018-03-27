@@ -6,21 +6,23 @@ import pandas as pd
 import time
 
 from abc import ABC
-from typing import Dict, Set, Union
+from typing import Dict, Optional, Set, Tuple, Union
 
 from experiment_logger.loggable import ObjectDict
 
-from document_reader.cv_wrapper import get_orb
-from document_reader.document import Document, Image_data
+from document_reader.cv_wrapper import crop_sections, display, find_transform_and_mask, get_keypoints_and_descriptors, get_matching_points, get_orb, low_and_high_pass_filter, low_pass_filter, resize, reverse_transformation
+from document_reader.document import Document, DocumentScan, Image_data
 from document_reader.os_wrapper import list_subfolders
 from document_reader.py_wrapper import startswith
-from document_reader.tfs_wrapper import ImageClassifier
+from document_reader.tfs_wrapper import get_labeled_img_df, ImageClassifier
 
 # TODO: re-add argument types Dict[str, ProdClient] and Union[str, ProdClient] once we've figured out how to import
 # ProdClient here and InMemoryClient in tfs_wrapper without causing tensorflow to go bonkers.
 
 
 class DocumentReader(ABC):
+
+    document_class = Document
 
     def __init__(self):
         self.document_type_name_or_classifier = None
@@ -82,31 +84,38 @@ class DocumentReader(ABC):
 
         return document_type_df.set_index('document_type_name')
 
-    def develop_document(self, img_path: str):
+    def is_good_scan(self, scan: DocumentScan, document_type_name: str):
+        return scan.result is not None
+
+    def develop_document(self, photo) -> document_class:
         start_time = time.time()
-        document = Document.from_path(img_path)
-        document.predict_document_type(self.document_type_name_or_classifier)
-        if document.document_type_name not in self.template_df.index:
-            document.error_reason = 'document_type'
-            return document
-        template_data = self.template_df.loc[document.document_type_name, 'template']
-        document.template_data = template_data
-        for i, img in enumerate(document.get_match_candidates(template_data)):
-            document.find_match(img, template_data, self.orb)
-            if not document.can_create_scan():
-                continue
-            document.find_transform_and_mask()
-            document.create_scan()
-            if document.scan is None:
-                continue
-            document.scan_retries = i
-            break
-        if document.scan is None:
-            document.error_reason = 'image_quality'
-            return document
-        document.read_fields(self.field_data_df.xs(document.document_type_name), self.field_classifier_dct)
+        photo_grey = cv2.cvtColor(photo, cv2.COLOR_BGR2GRAY)
+        document_type_name = self.predict_document_type(photo_grey, self.document_type_name_or_classifier)
+        scan, retries = self.scan_document(photo_grey, document_type_name)
+        field_df = self.read_fields(scan.result, self.field_data_df.xs(document_type_name))
+        document = self.document_class.from_parts(photo=photo, document_type_name=document_type_name, scan=scan, field_df=field_df, scan_retries=retries)
         document._method_times.append((inspect.currentframe().f_code.co_name, time.time() - start_time))
         return document
 
+    def scan_document(self, photo, document_type_name) -> Tuple[Optional[DocumentScan], Optional[int]]:
+        template_data = self.template_df.loc[document_type_name, 'template']
+        for i, img in enumerate(self.get_match_candidates(photo)):
+            scan = DocumentScan.from_photo(img, template_data, self.orb)
+            if self.is_good_scan(scan, document_type_name):
+                return scan, i
+        return None, None
 
+    @staticmethod
+    def predict_document_type(photo, document_type_name_or_classifier):
+        if type(document_type_name_or_classifier) == str:
+            return document_type_name_or_classifier
+        return document_type_name_or_classifier.img_to_prediction(photo)
 
+    def get_match_candidates(self, img):
+        # ordered according to descending incremental usefulness in terms of creating good scans
+        return img, low_and_high_pass_filter(img), low_pass_filter(img)
+
+    def read_fields(self, scan_result, field_data_df):
+        crop_df = crop_sections(scan_result, field_data_df)
+        field_df = get_labeled_img_df(crop_df, self.field_classifier_dct)
+        return field_df
